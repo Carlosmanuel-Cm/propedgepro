@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PropEdge Pro v5</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="styles.css">
+<style>
+.login-tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:12px;margin-bottom:22px;}
+.login-tab{flex:1;padding:8px;border:none;border-radius:9px;background:transparent;color:var(--text2);font-size:13px;cursor:pointer;font-weight:600;}
+.login-tab.active{background:var(--bg2);color:var(--blue);}
+.login-panel{display:none;}
+.login-panel.active{display:block;}
+.forgot-link{text-align:right;font-size:12px;color:var(--blue);cursor:pointer;margin-top:6px;text-decoration:underline;}
+.loading-overlay{position:fixed;inset:0;background:rgba(7,13,26,.9);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.loading-overlay.hidden{display:none;}
+.loading-spinner{width:44px;height:44px;border:3px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{color:var(--text2);font-size:14px;}
+.sync-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--green);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);padding:3px 10px;border-radius:20px;}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
+.user-email{font-size:11px;color:var(--text3);margin-top:2px;}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">Cargando...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon">⚡</div>
+      <h1>PropEdge Pro</h1>
+      <p>Professional Trading Journal & Analytics v5.0</p>
+    </div>
+    <div class="login-tabs">
+      <button class="login-tab active" onclick="switchTab('signin')">Iniciar Sesión</button>
+      <button class="login-tab" onclick="switchTab('signup')">Crear Cuenta</button>
+    </div>
+    <!-- SIGN IN -->
+    <div class="login-panel active" id="panel-signin">
+      <input type="email" id="loginEmail" placeholder="tu@email.com" />
+      <input type="password" id="loginPassword" placeholder="Contraseña" />
+      <div class="forgot-link" onclick="switchTab('forgot')">¿Olvidaste tu contraseña?</div>
+      <button id="loginBtn">Iniciar Sesión</button>
+      <p class="login-error" id="loginError"></p>
+    </div>
+    <!-- SIGN UP -->
+    <div class="login-panel" id="panel-signup">
+      <input type="text" id="regUsername" placeholder="Nombre de usuario (ej: carlos)" />
+      <input type="email" id="regEmail" placeholder="tu@email.com" />
+      <input type="password" id="regPassword" placeholder="Contraseña (mínimo 6 caracteres)" />
+      <input type="password" id="regConfirm" placeholder="Confirmar contraseña" />
+      <button id="registerBtn">Crear Cuenta</button>
+      <p class="login-error" id="registerError"></p>
+    </div>
+    <!-- RECUPERAR -->
+    <div class="login-panel" id="panel-forgot">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">Te enviaremos un enlace para restablecer tu contraseña.</p>
+      <input type="email" id="forgotEmail" placeholder="tu@email.com" />
+      <button id="forgotBtn">Enviar enlace de recuperación</button>
+      <p class="login-error" id="forgotError"></p>
+      <div class="forgot-link" style="text-align:center;margin-top:10px;" onclick="switchTab('signin')">← Volver al login</div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">⚡ PropEdge <span class="pro-badge">PRO v5</span></div>
+    <div class="sidebar-section">Principal</div>
+    <button class="menu-btn active" data-section="dashboard">📊 Dashboard</button>
+    <button class="menu-btn" data-section="news">📰 Noticias Forex</button>
+    <button class="menu-btn" data-section="sessions">🌐 Sesiones Live</button>
+    <div class="sidebar-section">Herramientas</div>
+    <button class="menu-btn" data-section="risk">⚖️ Risk Manager</button>
+    <button class="menu-btn" data-section="journal">📓 Trade Journal</button>
+    <button class="menu-btn" data-section="stats">📈 Estadísticas</button>
+    <button class="menu-btn" data-section="playbook">📚 Playbook</button>
+    <div class="sidebar-section">Prop Firms & Más</div>
+    <button class="menu-btn" data-section="propfirm">🏦 Prop Firm Tracker</button>
+    <button class="menu-btn" data-section="payouts">💸 Módulo Payouts</button>
+    <button class="menu-btn" data-section="psicologia">🧠 Diario Psicológico</button>
+    <button class="menu-btn" data-section="logros">🏆 Logros</button>
+    <div class="sidebar-section">Configuración</div>
+    <button class="menu-btn" data-section="settings">⚙️ Configuración</button>
+    <button class="menu-btn" data-section="users">👥 Usuarios</button>
+    <div class="sidebar-footer">
+      <div class="session-indicator" id="sidebarSession">
+        <span class="session-dot" id="sessionDot"></span>
+        <span id="sessionLabel">Calculando...</span>
+      </div>
+      <div id="syncStatus" class="sync-badge hidden"><div class="sync-dot"></div> Guardado en la nube</div>
+      <button class="theme-btn" id="themeBtn">🌙 Modo Oscuro</button>
+      <button class="logout-btn" id="logoutBtn">🔓 Cerrar Sesión</button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+
+  <main class="main-content">
+
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="page active-page">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-subtitle" id="dashUser">Bienvenido</div>
+          <div class="user-email" id="dashEmail"></div>
+        </div>
+        <div class="header-actions"><div class="live-clock" id="liveClock"></div></div>
+      </div>
+      <div id="dashAlert" class="alert-banner red hidden"></div>
+      <div class="cards-grid">
+        <div class="stat-card"><div class="label">Balance Inicial</div><div class="value" id="dashBalanceInit">$0</div><div class="trend">Capital base</div></div>
+        <div class="stat-card"><div class="label">Balance Actual</div><div class="value" id="dashBalance">$0</div><div class="trend" id="dashBalanceTrend">—</div></div>
+        <div class="stat-card"><div class="label">Equity Actual</div><div class="value" id="dashEquity">$0</div><div class="trend" id="dashEquityTrend">—</div></div>
+        <div class="stat-card"><div class="label">P&amp;L Total</div><div class="value" id="dashPnl">$0</div><div class="trend" id="dashPnlTrend">—</div></div>
+        <div class="stat-card"><div class="label">Win Rate</div><div class="value" id="dashWinRate">0%</div><div class="trend" id="dashWRTrend">Sin trades</div></div>
+        <div class="stat-card"><div class="label">Profit Factor</div><div class="value" id="dashPF">—</div><div class="trend">Ratio G/P</div></div>
+        <div class="stat-card"><div class="label">Drawdown Actual</div><div class="value trend-down" id="dashDDActual">—</div><div class="trend">Desde último pico</div></div>
+        <div class="stat-card"><div class="label">Drawdown Máximo</div><div class="value trend-down" id="dashDD">—</div><div class="trend">Histórico</div></div>
+        <div class="stat-card"><div class="label">Racha Ganadora</div><div class="value trend-up" id="dashStreak">0</div><div class="trend">Consecutivos</div></div>
+        <div class="stat-card"><div class="label">Racha Perdedora</div><div class="value trend-down" id="dashLossStreak">0</div><div class="trend">Consecutivos</div></div>
+        <div class="stat-card"><div class="label">Trades Totales</div><div class="value" id="dashTrades">0</div><div class="trend">Registrados</div></div>
+        <div class="stat-card"><div class="label">Promedio / Trade</div><div class="value" id="dashAvg">$0</div><div class="trend">Por operación</div></div>
+      </div>
+      <div class="chart-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <h3 style="margin:0;">📈 Curva de Equity</h3>
+          <div class="tabs" id="equityTabs">
+            <button class="tab-btn active" data-range="all">Todo</button>
+            <button class="tab-btn" data-range="30">30d</button>
+            <button class="tab-btn" data-range="7">7d</button>
+          </div>
+        </div>
+        <canvas id="equityChart" height="160"></canvas>
+      </div>
+      <div class="two-col">
+        <div class="chart-card" style="margin-bottom:0"><h3>📅 P&amp;L Semanal</h3><canvas id="weeklyChart" height="160"></canvas></div>
+        <div class="chart-card" style="margin-bottom:0"><h3>📆 P&amp;L Diario (últimos 14 días)</h3><canvas id="dailyChart" height="160"></canvas></div>
+      </div>
+      <div class="two-col" style="margin-top:20px;">
+        <div class="chart-card" style="margin-bottom:0"><h3>🔴 Noticias Alto Impacto Hoy</h3><div id="dashNewsPreview"></div></div>
+        <div class="chart-card" style="margin-bottom:0"><h3>📅 Calendario del Mes</h3><div id="miniCalendar"></div><div class="sound-indicator"><span class="sound-dot"></span> Alertas activas</div></div>
+      </div>
+      <div class="chart-card" style="margin-top:20px;"><h3>🏦 Estado de Prop Firms Activas</h3><div id="dashPropSummary" class="dash-prop-summary"></div></div>
+    </section>
+
+    <!-- NOTICIAS -->
+    <section id="news" class="page">
+      <div class="page-header"><div><div class="page-title">Noticias Forex</div><div class="page-subtitle">Calendario económico en tiempo real</div></div></div>
+      <div class="alert-banner">⚡ Datos actualizados. Conecta la API de TradingEconomics para datos en vivo.</div>
+      <input class="search-bar" id="newsSearch" placeholder="🔍 Buscar evento..." />
+      <div class="news-filters">
+        <button class="news-filter-btn active" data-filter="all">Todas</button>
+        <button class="news-filter-btn" data-filter="high">🔴 Alto</button>
+        <button class="news-filter-btn" data-filter="medium">🟡 Medio</button>
+        <button class="news-filter-btn" data-filter="low">🟢 Bajo</button>
+        <button class="news-filter-btn" data-filter="USD">🇺🇸 USD</button>
+        <button class="news-filter-btn" data-filter="EUR">🇪🇺 EUR</button>
+        <button class="news-filter-btn" data-filter="GBP">🇬🇧 GBP</button>
+        <button class="news-filter-btn" data-filter="JPY">🇯🇵 JPY</button>
+        <button class="news-filter-btn" data-filter="CAD">🇨🇦 CAD</button>
+        <button class="news-filter-btn" data-filter="CHF">🇨🇭 CHF</button>
+        <button class="news-filter-btn" data-filter="AUD">🇦🇺 AUD</button>
+        <button class="news-filter-btn" data-filter="NZD">🇳🇿 NZD</button>
+      </div>
+      <div class="news-wrap">
+        <table class="news-table">
+          <thead><tr><th>Hora ET</th><th>Moneda</th><th>Impacto</th><th>Evento</th><th>Anterior</th><th>Pronóstico</th><th>Real</th></tr></thead>
+          <tbody id="newsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SESIONES -->
+    <section id="sessions" class="page">
+      <div class="page-header"><div><div class="page-title">Sesiones de Trading Live</div><div class="page-subtitle">Estado en tiempo real de los mercados globales</div></div><div class="live-clock" id="sessionsClockDisplay"></div></div>
+      <div class="sessions-grid">
+        <div class="session-card" id="sc-sydney"><div class="session-flag">🇦🇺</div><div class="session-name">Sydney</div><div class="session-time-range">10:00 PM — 7:00 AM ET</div><div class="session-status-badge" id="sb-sydney">—</div><div class="session-pairs">AUD/USD · AUD/JPY · NZD/USD</div><div class="session-local-time" id="sl-sydney"></div></div>
+        <div class="session-card" id="sc-tokyo"><div class="session-flag">🇯🇵</div><div class="session-name">Tokyo</div><div class="session-time-range">12:00 AM — 9:00 AM ET</div><div class="session-status-badge" id="sb-tokyo">—</div><div class="session-pairs">USD/JPY · EUR/JPY · GBP/JPY</div><div class="session-local-time" id="sl-tokyo"></div></div>
+        <div class="session-card" id="sc-london"><div class="session-flag">🇬🇧</div><div class="session-name">London</div><div class="session-time-range">3:00 AM — 12:00 PM ET</div><div class="session-status-badge" id="sb-london">—</div><div class="session-pairs">EUR/USD · GBP/USD · EUR/GBP</div><div class="session-local-time" id="sl-london"></div></div>
+        <div class="session-card" id="sc-newyork"><div class="session-flag">🇺🇸</div><div class="session-name">New York</div><div class="session-time-range">8:00 AM — 5:00 PM ET</div><div class="session-status-badge" id="sb-newyork">—</div><div class="session-pairs">USD/CAD · USD/CHF · XAU/USD</div><div class="session-local-time" id="sl-newyork"></div></div>
+      </div>
+      <div class="chart-card" style="margin-top:20px;"><h3>🔁 Overlap London / New York</h3><p style="font-size:13px;color:var(--text2);margin-bottom:14px;">8:00 AM – 12:00 PM ET · Mayor volatilidad del día</p><div id="sessionTimeline"></div></div>
+      <div class="chart-card"><h3>📊 Mis trades por sesión</h3><canvas id="sessionPieChart" height="200"></canvas></div>
+    </section>
+
+    <!-- RISK MANAGER -->
+    <section id="risk" class="page">
+      <div class="page-title">⚖️ Risk Manager PRO</div>
+      <div class="page-subtitle">Calculadora avanzada: lotaje, break even y parciales</div>
+      <div class="risk-form">
+        <div class="form-row">
+          <div class="form-group"><label>Balance ($)</label><input type="number" id="riskBalance" placeholder="10000" /></div>
+          <div class="form-group"><label>Riesgo (%)</label><input type="number" id="riskPercent" placeholder="1" step="0.1" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Stop Loss (pips)</label><input type="number" id="riskStop" placeholder="20" /></div>
+          <div class="form-group"><label>Par de Divisas</label>
+            <select id="riskPair">
+              <option value="10">EURUSD — Pip $10</option><option value="10">GBPUSD — Pip $10</option>
+              <option value="9">USDJPY — Pip $9</option><option value="12">GBPJPY — Pip $12</option>
+              <option value="7.5">USDCAD — Pip $7.5</option><option value="8">USDCHF — Pip $8</option>
+              <option value="9.5">AUDUSD — Pip $9.5</option><option value="9.2">NZDUSD — Pip $9.2</option>
+              <option value="100">XAUUSD — $100/lot</option><option value="50">US30 — $50/punto</option>
+              <option value="20">NAS100 — $20/punto</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Ratio R:R</label><input type="number" id="riskRR" placeholder="2" step="0.1" /></div>
+          <div class="form-group"><label>Comisión por lote ($)</label><input type="number" id="riskComm" placeholder="7" step="0.5" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Máx. pérdida diaria ($)</label><input type="number" id="riskDailyMax" placeholder="300" /></div>
+          <div class="form-group"><label>Máx. pérdida semanal ($)</label><input type="number" id="riskWeeklyMax" placeholder="600" /></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Precio de Entrada</label><input type="number" id="riskEntryPrice" placeholder="1.08500" step="0.00001" /></div>
+          <div class="form-group"><label>Precio Stop Loss</label><input type="number" id="riskSLPrice" placeholder="1.08300" step="0.00001" /></div>
+        </div>
+        <button class="calc-btn" id="calculateRiskBtn">⚡ Calcular Riesgo Completo</button>
+        <div class="risk-result hidden" id="riskOutput">
+          <h3>📊 Resultado del Cálculo</h3>
+          <div class="risk-result-grid">
+            <div class="risk-result-item"><div class="r-label">Dinero en Riesgo</div><div class="r-value" id="riskMoney">$0</div></div>
+            <div class="risk-result-item"><div class="r-label">Tamaño de Lote</div><div class="r-value" id="riskLot">0.00</div></div>
+            <div class="risk-result-item"><div class="r-label">Pip Value</div><div class="r-value" id="riskPipVal">$0</div></div>
+            <div class="risk-result-item"><div class="r-label">Take Profit $</div><div class="r-value" id="riskTP">$0</div></div>
+            <div class="risk-result-item"><div class="r-label">Comisión Total</div><div class="r-value" id="riskCommTotal">$0</div></div>
+            <div class="risk-result-item"><div class="r-label">Riesgo Neto</div><div class="r-value" id="riskNet">$0</div></div>
+            <div class="risk-result-item"><div class="r-label">% del Balance</div><div class="r-value" id="riskPct">0%</div></div>
+            <div class="risk-result-item"><div class="r-label">Trades hasta DD Diario</div><div class="r-value" id="riskTradesDD">—</div></div>
+            <div class="risk-result-item"><div class="r-label">Trades hasta DD Semanal</div><div class="r-value" id="riskTradesWeekly">—</div></div>
+            <div class="risk-result-item"><div class="r-label">Break Even</div><div class="r-value" id="riskBE">—</div></div>
+          </div>
+          <div class="parciales-section">
+            <h3 style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px;font-weight:700;">⚡ Niveles de Parciales</h3>
+            <div class="parciales-grid" id="parcialesGrid"></div>
+          </div>
+          <div id="riskWarning" class="risk-warning hidden"></div>
+        </div>
+      </div>
+      <div class="chart-card"><h3>📋 Historial de Cálculos</h3><div id="riskHistory" style="font-size:13px;color:var(--text3);">Sin cálculos aún.</div></div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section id="journal" class="page">
+      <div class="page-title">📓 Trade Journal PRO</div>
+      <div class="page-subtitle">Registro completo guardado automáticamente en la nube</div>
+      <div class="journal-actions">
+        <button class="action-btn btn-add" id="openTradeModal">+ Agregar Trade</button>
+        <button class="action-btn btn-export" id="exportCsvBtn">⬇ Exportar CSV</button>
+        <button class="action-btn btn-import" id="importCsvBtn">⬆ Importar CSV</button>
+        <input type="file" id="csvFileInput" accept=".csv" style="display:none">
+        <button class="action-btn btn-del" id="clearAllBtn">🗑 Borrar Todo</button>
+      </div>
+      <div class="journal-filters">
+        <input class="search-bar" id="tradeSearch" placeholder="🔍 Buscar par, setup, notas..." style="margin-bottom:0;flex:1;min-width:180px;" />
+        <select class="filter-select" id="filterPair"><option value="">Todos los pares</option><option>EURUSD</option><option>GBPUSD</option><option>USDJPY</option><option>GBPJPY</option><option>XAUUSD</option><option>US30</option><option>NAS100</option></select>
+        <select class="filter-select" id="filterSession"><option value="">Todas las sesiones</option><option>London</option><option>New York</option><option>Tokyo</option><option>Sydney</option><option>London/NY Overlap</option></select>
+        <select class="filter-select" id="filterSetup"><option value="">Todos los setups</option><option>Breaker Block</option><option>Order Block</option><option>FVG Fill</option><option>Liquidity Sweep</option><option>MSS/BOS</option><option>Reversión</option><option>Tendencia</option><option>Rango</option></select>
+        <select class="filter-select" id="filterResult"><option value="">Todos los resultados</option><option value="win">Solo WIN</option><option value="loss">Solo LOSS</option><option value="be">Solo BE</option></select>
+      </div>
+      <div class="journal-summary" id="journalSummary"></div>
+      <div class="trades-wrap">
+        <table class="trades-table">
+          <thead><tr><th>Fecha</th><th>Hora</th><th>Par</th><th>Tipo</th><th>Lote</th><th>Entrada</th><th>SL</th><th>TP</th><th>R:R</th><th>P&amp;L</th><th>Resultado</th><th>Sesión</th><th>Setup</th><th>Emoción</th><th>Notas</th><th>Acciones</th></tr></thead>
+          <tbody id="tradesBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ESTADÍSTICAS -->
+    <section id="stats" class="page">
+      <div class="page-title">📈 Estadísticas Avanzadas</div>
+      <div class="page-subtitle">Análisis completo de rendimiento y métricas profesionales</div>
+      <div class="cards-grid">
+        <div class="stat-card"><div class="label">Win Rate</div><div class="value" id="statWR">0%</div></div>
+        <div class="stat-card"><div class="label">Profit Factor</div><div class="value" id="statPF">—</div></div>
+        <div class="stat-card"><div class="label">Expectancy</div><div class="value" id="statExpectancy">—</div><div class="trend">$/trade esperado</div></div>
+        <div class="stat-card"><div class="label">Sharpe Ratio</div><div class="value" id="statSharpe">—</div><div class="trend">&gt;1 es bueno</div></div>
+        <div class="stat-card"><div class="label">Recovery Factor</div><div class="value" id="statRecovery">—</div><div class="trend">P&amp;L / MaxDD</div></div>
+        <div class="stat-card"><div class="label">Mejor Trade</div><div class="value trend-up" id="statBest">$0</div></div>
+        <div class="stat-card"><div class="label">Peor Trade</div><div class="value trend-down" id="statWorst">$0</div></div>
+        <div class="stat-card"><div class="label">Promedio WIN</div><div class="value trend-up" id="statAvgWin">$0</div></div>
+        <div class="stat-card"><div class="label">Promedio LOSS</div><div class="value trend-down" id="statAvgLoss">$0</div></div>
+        <div class="stat-card"><div class="label">R:R Promedio</div><div class="value" id="statRR">—</div></div>
+        <div class="stat-card"><div class="label">Max Drawdown</div><div class="value trend-down" id="statDD">$0</div></div>
+        <div class="stat-card"><div class="label">Racha Ganadora</div><div class="value" id="statStreak">0</div></div>
+        <div class="stat-card"><div class="label">Racha Perdedora</div><div class="value trend-down" id="statLossStreak">0</div></div>
+      </div>
+      <div class="two-col">
+        <div class="chart-card"><h3>📊 Distribución Trades</h3><canvas id="pieChart" height="220"></canvas></div>
+        <div class="chart-card"><h3>💹 P&amp;L por Par</h3><canvas id="barChart" height="220"></canvas></div>
+      </div>
+      <div class="two-col">
+        <div class="chart-card"><h3>🕐 P&amp;L por Sesión</h3><canvas id="sessionChart" height="220"></canvas></div>
+        <div class="chart-card"><h3>📊 Distribución de P&amp;L</h3><canvas id="distChart" height="220"></canvas></div>
+      </div>
+      <div class="chart-card"><h3>📅 P&amp;L Mensual</h3><canvas id="monthlyChart" height="130"></canvas></div>
+      <div class="two-col">
+        <div class="chart-card"><h3>📅 Rendimiento por Día de la Semana</h3><canvas id="weekdayChart" height="220"></canvas></div>
+        <div class="chart-card"><h3>🕐 Rendimiento por Hora</h3><canvas id="hourChart" height="220"></canvas></div>
+      </div>
+      <div class="chart-card"><h3>🎯 Rendimiento por Setup</h3><canvas id="setupChart" height="130"></canvas></div>
+    </section>
+
+    <!-- PLAYBOOK -->
+    <section id="playbook" class="page">
+      <div class="page-title">📚 Playbook de Trading</div>
+      <div class="page-subtitle">Tus reglas, setups y plan de trading — guardados en la nube</div>
+      <div class="playbook-actions"><button class="action-btn btn-add" id="openRuleModal">+ Nueva Regla / Setup</button></div>
+      <div id="playbookList" class="playbook-list"></div>
+    </section>
+
+    <!-- PROP FIRM -->
+    <section id="propfirm" class="page">
+      <div class="page-header"><div><div class="page-title">🏦 Prop Firm Tracker</div><div class="page-subtitle">Gestiona todas tus cuentas fondeadas</div></div><button class="action-btn btn-add" id="openPropModal">+ Agregar Cuenta</button></div>
+      <div id="propFirmList" class="propfirm-grid"></div>
+    </section>
+
+    <!-- PAYOUTS -->
+    <section id="payouts" class="page">
+      <div class="page-header"><div><div class="page-title">💸 Módulo de Payouts</div><div class="page-subtitle">Registra y visualiza todos tus retiros</div></div><button class="action-btn btn-add" id="openPayoutModal">+ Registrar Payout</button></div>
+      <div class="cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+        <div class="stat-card"><div class="label">Total Retirado</div><div class="value trend-up" id="payoutTotal">$0</div><div class="trend">Todos los payouts</div></div>
+        <div class="stat-card"><div class="label">Payouts Recibidos</div><div class="value" id="payoutCount">0</div><div class="trend">Completados</div></div>
+        <div class="stat-card"><div class="label">Mayor Payout</div><div class="value trend-up" id="payoutBest">$0</div><div class="trend">Registro máximo</div></div>
+        <div class="stat-card"><div class="label">Último Payout</div><div class="value" id="payoutLast">—</div><div class="trend">Más reciente</div></div>
+      </div>
+      <div class="two-col">
+        <div class="chart-card" style="margin-bottom:0"><h3>📊 Historial de Payouts</h3><div id="payoutList" class="payout-list"></div></div>
+        <div class="chart-card" style="margin-bottom:0"><h3>📈 Payouts por Firma</h3><canvas id="payoutChart" height="260"></canvas></div>
+      </div>
+    </section>
+
+    <!-- PSICOLOGÍA -->
+    <section id="psicologia" class="page">
+      <div class="page-header"><div><div class="page-title">🧠 Diario Psicológico</div><div class="page-subtitle">Registra tu estado mental y emocional</div></div><button class="action-btn btn-add" id="openPsycModal">+ Nueva Entrada</button></div>
+      <div class="cards-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="stat-card"><div class="label">Entradas Totales</div><div class="value" id="psycTotal">0</div><div class="trend">Días registrados</div></div>
+        <div class="stat-card"><div class="label">Disciplina Prom.</div><div class="value trend-up" id="psycDisciplina">—</div><div class="trend">Sobre 10</div></div>
+        <div class="stat-card"><div class="label">Confianza Prom.</div><div class="value" id="psycConfianza">—</div><div class="trend">Sobre 10</div></div>
+        <div class="stat-card"><div class="label">Estrés Promedio</div><div class="value trend-down" id="psycEstres">—</div><div class="trend">Sobre 10</div></div>
+      </div>
+      <div class="two-col">
+        <div class="chart-card"><h3>📈 Evolución Mental (últimos 14 días)</h3><canvas id="psycChart" height="220"></canvas></div>
+        <div class="chart-card"><h3>😌 Emociones vs P&amp;L</h3><canvas id="emotionChart" height="220"></canvas></div>
+      </div>
+      <div class="chart-card"><h3>📓 Historial de Entradas</h3><div id="psycList" class="psyc-list"></div></div>
+    </section>
+
+    <!-- LOGROS -->
+    <section id="logros" class="page">
+      <div class="page-header"><div><div class="page-title">🏆 Sistema de Logros</div><div class="page-subtitle">Tu progreso como trader profesional</div></div></div>
+      <div class="chart-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><h3 style="margin:0;">⭐ Progreso General</h3><span id="logrosProgress" style="font-size:22px;font-weight:900;color:var(--yellow);">0 / 0</span></div>
+        <div class="achievement-progress-bar"><div class="achievement-progress-fill" id="logrosBar" style="width:0%"></div></div>
+        <p style="font-size:12px;color:var(--text3);margin-top:8px;" id="logrosSubtitle">Completa logros para avanzar</p>
+      </div>
+      <div id="logrosList" class="logros-grid"></div>
+    </section>
+
+    <!-- CONFIGURACIÓN -->
+    <section id="settings" class="page">
+      <div class="page-title">⚙️ Configuración</div>
+      <div class="page-subtitle">Personaliza tu experiencia en PropEdge Pro</div>
+      <div class="chart-card">
+        <h3>💰 Balance Inicial</h3>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:14px;">Se guarda en la nube en tu perfil.</p>
+        <div class="form-row" style="max-width:400px;"><div class="form-group"><label>Balance inicial ($)</label><input type="number" id="settingsBalance" placeholder="50000" /></div></div>
+        <button class="calc-btn" id="saveBalanceBtn" style="max-width:200px;">💾 Guardar Balance</button>
+      </div>
+      <div class="chart-card">
+        <h3>🔑 Cambiar Contraseña</h3>
+        <div class="form-row" style="max-width:500px;">
+          <div class="form-group"><label>Nueva contraseña</label><input type="password" id="newPwdInput" placeholder="Mínimo 6 caracteres" /></div>
+          <div class="form-group"><label>Confirmar</label><input type="password" id="confirmPwdInput" placeholder="Repetir contraseña" /></div>
+        </div>
+        <button class="calc-btn" id="changePwdBtn" style="max-width:220px;">🔑 Cambiar Contraseña</button>
+      </div>
+      <div class="chart-card">
+        <h3>🎨 Apariencia</h3>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <label style="font-size:14px;color:var(--text2);">Tema:</label>
+          <button class="action-btn btn-add" id="settingsThemeBtn" style="padding:8px 16px;">🌙 Modo Oscuro</button>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>🗃️ Gestión de Datos</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="action-btn btn-export" id="backupBtn">⬇ Descargar Backup JSON</button>
+          <button class="action-btn btn-import" id="restoreBtn">⬆ Restaurar Backup</button>
+          <input type="file" id="backupFileInput" accept=".json" style="display:none">
+          <button class="action-btn btn-del" id="nukeBtn">💣 Borrar Todo (Reset)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- USUARIOS -->
+    <section id="users" class="page">
+      <div class="page-title">👥 Gestión de Usuarios</div>
+      <div class="page-subtitle">Cada usuario tiene su propia cuenta segura con Supabase Auth.</div>
+      <div class="chart-card">
+        <h3>👤 Tu Cuenta Actual</h3>
+        <div id="usersList"></div>
+      </div>
+      <div class="chart-card">
+        <h3>➕ Crear Nuevo Usuario</h3>
+        <p style="font-size:13px;color:var(--text3);margin-bottom:14px;">Crea cuentas para otros traders. Ellos podrán acceder con su email y contraseña.</p>
+        <div class="form-row" style="max-width:500px;">
+          <div class="form-group"><label>Email</label><input type="email" id="inviteEmail" placeholder="usuario@email.com" /></div>
+          <div class="form-group"><label>Contraseña temporal</label><input type="password" id="invitePass" placeholder="Mínimo 6 caracteres" /></div>
+        </div>
+        <div class="form-row" style="max-width:500px;">
+          <div class="form-group"><label>Nombre de usuario</label><input type="text" id="inviteUsername" placeholder="ej: trader2" /></div>
+          <div class="form-group"><label>Rol</label>
+            <select id="inviteRole"><option value="trader">📊 Trader</option><option value="admin">🔑 Admin</option><option value="viewer">👁 Solo lectura</option></select>
+          </div>
+        </div>
+        <button class="calc-btn" id="createUserBtn" style="max-width:220px;">➕ Crear Usuario</button>
+        <p class="login-error" id="inviteError" style="display:none;margin-top:10px;"></p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- MODAL TRADE -->
+<div class="modal-overlay hidden" id="tradeModal">
+  <div class="modal">
+    <h2 id="tradeModalTitle">📝 Registrar Trade</h2>
+    <div class="form-row"><div class="form-group"><label>Fecha</label><input type="date" id="tDate" /></div><div class="form-group"><label>Hora</label><input type="time" id="tTime" /></div></div>
+    <div class="form-row">
+      <div class="form-group"><label>Par</label><select id="tPair"><option>EURUSD</option><option>GBPUSD</option><option>USDJPY</option><option>GBPJPY</option><option>USDCAD</option><option>USDCHF</option><option>AUDUSD</option><option>NZDUSD</option><option>XAUUSD</option><option>US30</option><option>NAS100</option><option>Otro</option></select></div>
+      <div class="form-group"><label>Tipo</label><select id="tType"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></div>
+    </div>
+    <div class="form-row"><div class="form-group"><label>Lote</label><input type="number" id="tLot" placeholder="0.01" step="0.01" /></div><div class="form-group"><label>Entrada</label><input type="number" id="tEntry" step="0.00001" /></div></div>
+    <div class="form-row"><div class="form-group"><label>Stop Loss</label><input type="number" id="tSL" step="0.00001" /></div><div class="form-group"><label>Take Profit</label><input type="number" id="tTP" step="0.00001" /></div></div>
+    <div class="form-row"><div class="form-group"><label>P&amp;L ($)</label><input type="number" id="tPnl" placeholder="150 o -80" /></div><div class="form-group"><label>Riesgo ($)</label><input type="number" id="tRisk" placeholder="100" /></div></div>
+    <div class="form-row">
+      <div class="form-group"><label>Sesión</label><select id="tSession"><option>London</option><option>New York</option><option>Tokyo</option><option>Sydney</option><option>London/NY Overlap</option></select></div>
+      <div class="form-group"><label>Setup</label><select id="tSetup"><option value="">Sin definir</option><option>Breaker Block</option><option>Order Block</option><option>FVG Fill</option><option>Liquidity Sweep</option><option>MSS/BOS</option><option>Reversión</option><option>Tendencia</option><option>Rango</option><option>Otro</option></select></div>
+    </div>
+    <div class="form-group"><label>Emoción al entrar</label><select id="tEmotion"><option value="">Sin registrar</option><option>😌 Tranquilo / Disciplinado</option><option>😰 FOMO / Impulsivo</option><option>😤 Frustrado / Venganza</option><option>🤔 Dudando</option><option>💪 Confiado</option></select></div>
+    <div class="form-group"><label>Notas</label><input type="text" id="tNotes" placeholder="Estrategia, observaciones..." /></div>
+    <div class="modal-footer"><button class="btn-cancel" id="closeTradeModal">Cancelar</button><button class="btn-save" id="saveTradeBtn">Guardar Trade</button></div>
+  </div>
+</div>
+
+<!-- MODAL PLAYBOOK -->
+<div class="modal-overlay hidden" id="ruleModal">
+  <div class="modal">
+    <h2>📚 Nueva Regla / Setup</h2>
+    <div class="form-group"><label>Título</label><input type="text" id="ruleTitle" placeholder="ej: No operar antes del NFP" /></div>
+    <div class="form-group"><label>Categoría</label><select id="ruleCategory"><option value="regla">📋 Regla de Trading</option><option value="setup">🎯 Setup / Estrategia</option><option value="gestion">⚖️ Gestión de Riesgo</option><option value="psicologia">🧠 Psicología</option><option value="nota">📝 Nota General</option></select></div>
+    <div class="form-group"><label>Descripción</label><textarea id="ruleContent" rows="5" placeholder="Describe el setup, condiciones de entrada, niveles clave..." style="width:100%;padding:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-size:14px;resize:vertical;outline:none;font-family:inherit;"></textarea></div>
+    <div class="form-group"><label>Prioridad</label><select id="rulePriority"><option value="high">🔴 Alta</option><option value="medium">🟡 Media</option><option value="low">🟢 Baja</option></select></div>
+    <div class="modal-footer"><button class="btn-cancel" id="closeRuleModal">Cancelar</button><button class="btn-save" id="saveRuleBtn">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL PROP FIRM -->
+<div class="modal-overlay hidden" id="propModal">
+  <div class="modal">
+    <h2 id="propModalTitle">🏦 Nueva Cuenta Prop Firm</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Prop Firm</label><select id="propFirmName"><option>FTMO</option><option>Apex</option><option>The5ers</option><option>Funding Pips</option><option>FundedNext</option><option>Alpha Capital</option><option>E8 Funding</option><option>TopStep</option><option>MyFundedFutures</option><option>Blue Guardian</option><option>Goat Funded Trader</option><option>Otra</option></select></div>
+      <div class="form-group"><label>Fase</label><select id="propPhase"><option value="challenge">🎯 Challenge</option><option value="verification">🔄 Verificación</option><option value="funded">✅ Fondeada</option><option value="failed">❌ Fallida</option></select></div>
+    </div>
+    <div class="form-row"><div class="form-group"><label>Tamaño de Cuenta ($)</label><input type="number" id="propSize" placeholder="100000" /></div><div class="form-group"><label>Profit Target ($)</label><input type="number" id="propTarget" placeholder="10000" /></div></div>
+    <div class="form-row"><div class="form-group"><label>Ganancia Actual ($)</label><input type="number" id="propGain" placeholder="0" /></div><div class="form-group"><label>DD Máx. Permitido ($)</label><input type="number" id="propDD" placeholder="5000" /></div></div>
+    <div class="form-row"><div class="form-group"><label>DD Actual Usado ($)</label><input type="number" id="propDDUsed" placeholder="0" /></div><div class="form-group"><label>Días Mín.</label><input type="number" id="propMinDays" placeholder="5" /></div></div>
+    <div class="form-row"><div class="form-group"><label>Días Operados</label><input type="number" id="propDaysTraded" placeholder="0" /></div><div class="form-group"><label>Fecha de Inicio</label><input type="date" id="propStartDate" /></div></div>
+    <div class="form-group"><label>Notas</label><input type="text" id="propNotes" placeholder="Observaciones..." /></div>
+    <div class="modal-footer"><button class="btn-cancel" id="closePropModal">Cancelar</button><button class="btn-save" id="savePropBtn">Guardar Cuenta</button></div>
+  </div>
+</div>
+
+<!-- MODAL PAYOUT -->
+<div class="modal-overlay hidden" id="payoutModal">
+  <div class="modal">
+    <h2>💸 Registrar Payout</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Prop Firm</label><select id="payoutFirm"><option>FTMO</option><option>Apex</option><option>The5ers</option><option>Funding Pips</option><option>FundedNext</option><option>Alpha Capital</option><option>E8 Funding</option><option>TopStep</option><option>MyFundedFutures</option><option>Blue Guardian</option><option>Goat Funded Trader</option><option>Otra</option></select></div>
+      <div class="form-group"><label>Estado</label><select id="payoutStatus"><option value="pending">⏳ Pendiente</option><option value="received">✅ Recibido</option></select></div>
+    </div>
+    <div class="form-row"><div class="form-group"><label>Monto ($)</label><input type="number" id="payoutAmount" placeholder="1500" /></div><div class="form-group"><label>Fecha</label><input type="date" id="payoutDate" /></div></div>
+    <div class="form-group"><label>Notas</label><input type="text" id="payoutNotes" placeholder="Observaciones..." /></div>
+    <div class="modal-footer"><button class="btn-cancel" id="closePayoutModal">Cancelar</button><button class="btn-save" id="savePayoutBtn">Guardar</button></div>
+  </div>
+</div>
+
+<!-- MODAL PSICOLOGÍA -->
+<div class="modal-overlay hidden" id="psycModal">
+  <div class="modal">
+    <h2>🧠 Nueva Entrada Psicológica</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Fecha</label><input type="date" id="psycDate" /></div>
+      <div class="form-group"><label>Estado Emocional</label><select id="psycEmocion"><option value="excelente">😄 Excelente</option><option value="bien">🙂 Bien</option><option value="neutral">😐 Neutral</option><option value="mal">😞 Mal</option><option value="muy_mal">😣 Muy Mal</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Confianza (1–10)</label><input type="range" id="psycConfianzaVal" min="1" max="10" value="7" oninput="document.getElementById('psycConfianzaNum').textContent=this.value" style="width:100%;margin-top:8px;"/><div style="text-align:center;font-size:20px;font-weight:900;color:var(--blue);" id="psycConfianzaNum">7</div></div>
+      <div class="form-group"><label>Estrés (1–10)</label><input type="range" id="psycEstresVal" min="1" max="10" value="3" oninput="document.getElementById('psycEstresNum').textContent=this.value" style="width:100%;margin-top:8px;"/><div style="text-align:center;font-size:20px;font-weight:900;color:var(--red);" id="psycEstresNum">3</div></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Disciplina (1–10)</label><input type="range" id="psycDisciplinaVal" min="1" max="10" value="8" oninput="document.getElementById('psycDisciplinaNum').textContent=this.value" style="width:100%;margin-top:8px;"/><div style="text-align:center;font-size:20px;font-weight:900;color:var(--green);" id="psycDisciplinaNum">8</div></div>
+      <div class="form-group"><label>¿Seguí mi plan? (1–10)</label><input type="range" id="psycPlanVal" min="1" max="10" value="7" oninput="document.getElementById('psycPlanNum').textContent=this.value" style="width:100%;margin-top:8px;"/><div style="text-align:center;font-size:20px;font-weight:900;color:var(--purple);" id="psycPlanNum">7</div></div>
+    </div>
+    <div class="form-group"><label>Comentarios del día</label><textarea id="psycComentarios" rows="4" placeholder="¿Cómo te sentiste? ¿Qué aprendiste hoy?" style="width:100%;padding:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-size:14px;resize:vertical;outline:none;font-family:inherit;"></textarea></div>
+    <div class="modal-footer"><button class="btn-cancel" id="closePsycModal">Cancelar</button><button class="btn-save" id="savePsycBtn">Guardar Entrada</button></div>
+  </div>
+</div>
+
+<script>
+// Tab switcher para el login (inline para no depender de app.js antes de cargar)
+function switchTab(tab) {
+  ['signin','signup','forgot'].forEach(t => {
+    document.getElementById('panel-'+t).classList.toggle('active', t===tab);
+  });
+  document.querySelectorAll('.login-tab').forEach((b,i) => {
+    b.classList.toggle('active', (i===0&&tab==='signin')||(i===1&&tab==='signup'));
+  });
+}
+</script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
