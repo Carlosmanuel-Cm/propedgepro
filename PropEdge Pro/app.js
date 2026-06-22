@@ -1006,14 +1006,7 @@ function buildTradingDataSummary() {
   };
 }
 
-/* ══════════════════════════════════════════════
-   *** PON AQUÍ TU API KEY GRATIS DE GOOGLE GEMINI ***
-   Consíguela en: https://aistudio.google.com/apikey
-══════════════════════════════════════════════ */
-const GEMINI_API_KEY = 'AQ.Ab8RN6IS973Z6_QB1CFDAWVbD-WDY8xuvzhfqBqO2zvanaunKQ';
-/* ══════════════════════════════════════════════ */
-
-/** Llama a la API gratuita de Google Gemini con los datos del trader */
+/** Llama al endpoint serverless /api/coach que internamente usa Groq */
 async function callClaudeForAnalysis(dataSummary) {
   const systemPrompt = `Eres un coach de trading profesional y psicólogo de mercados financieros. Analizas datos reales de un trader y le das un reporte honesto, específico y útil — basado SOLO en los números que te paso, sin inventar nada.
 
@@ -1038,25 +1031,19 @@ Sé directo, evita generalidades tipo "sigue así" — todo debe basarse en los 
 
   const userPrompt = `Aquí están mis datos de trading. Analízalos y dame el reporte:\n\n${JSON.stringify(dataSummary, null, 2)}`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt + '\n\n' + userPrompt }] }]
-      })
-    }
-  );
+  const response = await fetch('/api/coach', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ systemPrompt, userPrompt }),
+  });
 
   if (!response.ok) {
     const errBody = await response.text().catch(() => '');
-    console.error('Gemini API error:', response.status, errBody);
+    console.error('Coach API error:', response.status, errBody);
     throw new Error('API error: ' + response.status);
   }
   const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  return text || 'No se pudo generar el análisis.';
+  return data.result || 'No se pudo generar el análisis.';
 }
 
 
