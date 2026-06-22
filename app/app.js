@@ -23,8 +23,7 @@ import {
   fetchPlaybook, insertPlaybookRule, deletePlaybookRule,
   fetchPsyc, insertPsyc, deletePsycEntry,
   fetchRiskHistory, insertRiskHistory,
-  fetchAiAnalyses, insertAiAnalysis,
-  fetchAllDataForBackup, restoreAllData
+fetchAllDataForBackup, restoreAllData
 } from './supabase.js';
 
 // ── STATE ─────────────────────────────────────────────────────
@@ -226,8 +225,7 @@ function initApp() {
   buildAllStatCharts();
   renderRiskHistory(); renderPlaybook(); renderPropFirms();
   renderPayouts(); renderPsyc(); renderLogros(); renderUserInfo();
-  fetchAiAnalyses(currentUser.id).then(({data}) => { aiAnalyses = data || []; renderAiQuickInsight(); renderAiHistory(); });
-  updateSessions(); setInterval(updateSessions,30000);
+updateSessions(); setInterval(updateSessions,30000);
   startAlertCheck();
 
   document.getElementById('newsSearch').addEventListener('input',renderNews);
@@ -329,7 +327,6 @@ document.querySelectorAll('.menu-btn').forEach(btn=>{
     if(s==='propfirm')renderPropFirms();
     if(s==='payouts'){renderPayouts();buildPayoutChart();}
     if(s==='stats'){renderStats();buildAllStatCharts();}
-    if(s==='iacoach'){renderAiQuickInsight();renderAiHistory();}
   });
 });
 
@@ -943,219 +940,3 @@ function renderUserInfo(){
   el.innerHTML=`<div class="user-item"><div><div class="user-name">👤 ${username}</div><div class="user-role">${role==='admin'?'🔑 Admin':role==='viewer'?'👁 Solo lectura':'📊 Trader'}</div><div style="font-size:11px;color:var(--text3);margin-top:3px;">📧 ${email}</div></div><div class="sync-badge"><div class="sync-dot"></div>Supabase Auth</div></div>`;
 }
 
-// ═══════════════════════════════════════════════════════════
-// 🤖 IA COACH — Análisis de trading con Claude API
-// ═══════════════════════════════════════════════════════════
-let aiAnalyses = [];
-
-/** Construye un resumen compacto y anonimizado de los datos del usuario para enviar a la IA */
-function buildTradingDataSummary() {
-  const stats = calcStats(trades);
-  const byPair = {}, bySetup = {}, byEmotion = {}, bySession = {}, byWeekday = {}, byHour = {};
-  const DAYS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-
-  trades.forEach(t => {
-    const pnl = parseFloat(t.pnl) || 0;
-    if (t.pair)    { byPair[t.pair]    = (byPair[t.pair]||0) + pnl; }
-    if (t.setup)   { bySetup[t.setup]  = (bySetup[t.setup]||0) + pnl; }
-    if (t.emotion) { byEmotion[t.emotion] = (byEmotion[t.emotion]||0) + pnl; }
-    if (t.session) { bySession[t.session] = (bySession[t.session]||0) + pnl; }
-    if (t.date) {
-      const d = DAYS[new Date(t.date+'T12:00:00').getDay()];
-      byWeekday[d] = (byWeekday[d]||0) + pnl;
-    }
-    if (t.time) {
-      const h = t.time.split(':')[0]+':00';
-      byHour[h] = (byHour[h]||0) + pnl;
-    }
-  });
-
-  const psycSummary = psycEntries.slice(0,14).map(e => ({
-    fecha: e.date, emocion: e.emocion, confianza: e.confianza,
-    estres: e.estres, disciplina: e.disciplina
-  }));
-
-  const propSummary = propFirms.map(p => ({
-    firma: p.firm, fase: p.phase, tamaño: p.size,
-    objetivo: p.target, ganancia_actual: p.gain
-  }));
-
-  return {
-    resumen_general: {
-      total_trades: trades.length,
-      win_rate: stats.wr + '%',
-      profit_factor: stats.pf,
-      pnl_total: '$' + stats.total.toFixed(2),
-      expectancy: stats.expectancy,
-      max_drawdown: '$' + stats.maxDD.toFixed(2),
-      racha_ganadora_max: stats.maxW,
-      racha_perdedora_max: stats.maxL,
-    },
-    pnl_por_par: byPair,
-    pnl_por_setup: bySetup,
-    pnl_por_emocion: byEmotion,
-    pnl_por_sesion: bySession,
-    pnl_por_dia_semana: byWeekday,
-    pnl_por_hora: byHour,
-    diario_psicologico_reciente: psycSummary,
-    cuentas_prop_firm: propSummary,
-    ultimos_10_trades: trades.slice(-10).map(t => ({
-      fecha: t.date, par: t.pair, tipo: t.type, pnl: t.pnl,
-      setup: t.setup, emocion: t.emotion, sesion: t.session, notas: t.notes
-    }))
-  };
-}
-
-/** Llama al endpoint serverless /api/coach que internamente usa Groq */
-async function callClaudeForAnalysis(dataSummary) {
-  const systemPrompt = `Eres un coach de trading profesional y psicólogo de mercados financieros. Analizas datos reales de un trader y le das un reporte honesto, específico y útil — basado SOLO en los números que te paso, sin inventar nada.
-
-Formato de respuesta (usa exactamente esta estructura en español, con markdown simple):
-
-## 📊 Resumen General
-[2-3 líneas evaluando el estado actual del trader]
-
-## 🎯 Tu Setup Más Rentable
-[Cuál setup le funciona mejor y por qué, basado en los datos]
-
-## ⚠️ Patrón de Riesgo Detectado
-[El problema más importante que detectas: puede ser un día/hora donde pierde más, una emoción asociada a pérdidas, sobre-trading, etc.]
-
-## 🧠 Conexión Psicología-Resultados
-[Si hay datos del diario psicológico, conecta el estado emocional con el rendimiento]
-
-## ✅ Recomendación Principal
-[Una acción concreta y específica que puede aplicar esta semana]
-
-Sé directo, evita generalidades tipo "sigue así" — todo debe basarse en los números reales que recibiste. Si no hay suficientes datos para alguna sección, dilo honestamente en una línea corta en lugar de inventar.`;
-
-  const userPrompt = `Aquí están mis datos de trading. Analízalos y dame el reporte:\n\n${JSON.stringify(dataSummary, null, 2)}`;
-
-  const response = await fetch('/api/coach', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ systemPrompt, userPrompt }),
-  });
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    console.error('Coach API error:', response.status, errBody);
-    throw new Error('API error: ' + response.status);
-  }
-  const data = await response.json();
-  return data.result || 'No se pudo generar el análisis.';
-}
-
-
-/** Convierte el markdown simple de la respuesta en HTML */
-function markdownToHtml(md) {
-  return md
-    .replace(/^## (.*$)/gim, '<h4>$1</h4>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^- (.*$)/gim, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m + '</ul>')
-    .replace(/\n\n/g, '<br><br>')
-    .replace(/\n/g, '<br>');
-}
-
-/** Insight rápido y corto para el Dashboard / parte superior de IA Coach */
-function renderAiQuickInsight() {
-  const el = document.getElementById('aiQuickInsight');
-  if (!el) return;
-  if (trades.length < 5) {
-    el.textContent = `Llevas ${trades.length} trade${trades.length===1?'':'s'} registrado${trades.length===1?'':'s'}. Registra al menos 5 para que la IA empiece a detectar patrones reales en tu trading.`;
-    return;
-  }
-  const stats = calcStats(trades);
-  const wins = stats.wins.length, losses = stats.losses.length;
-  let msg = '';
-  if (parseFloat(stats.pf) < 1 && stats.pf !== '—') {
-    msg = `Tu Profit Factor es ${stats.pf} — estás perdiendo más de lo que ganas en conjunto. Presiona "Analizar Mi Trading" para ver exactamente dónde está el problema.`;
-  } else if (stats.maxL >= 5) {
-    msg = `Detectamos una racha perdedora de ${stats.maxL} trades consecutivos en tu historial. Vale la pena revisar qué pasó en esos momentos.`;
-  } else if (parseFloat(stats.wr) >= 60) {
-    msg = `Tu win rate de ${stats.wr}% es sólido. Presiona "Analizar Mi Trading" para ver cuál es tu setup más rentable y duplicar esa ventaja.`;
-  } else {
-    msg = `Tienes ${trades.length} trades registrados con ${wins} wins y ${losses} losses. Presiona "Analizar Mi Trading" para un reporte completo basado en tus patrones reales.`;
-  }
-  el.textContent = msg;
-}
-
-function renderAiHistory() {
-  const el = document.getElementById('aiHistoryList');
-  if (!el) return;
-  if (!aiAnalyses.length) {
-    el.innerHTML = '<div class="ai-empty-history">Sin análisis previos. Genera tu primer reporte arriba.</div>';
-    return;
-  }
-  el.innerHTML = aiAnalyses.map((a, i) => {
-    const d = new Date(a.created_at);
-    const fecha = d.toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }) +
-                  ' · ' + d.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
-    const preview = a.content.replace(/[#*\n]/g,' ').slice(0, 90) + '...';
-    return `<div class="ai-history-item" onclick="showAiHistoryItem(${i})">
-      <div class="ai-history-date">📅 ${fecha} · ${a.trades_count || 0} trades analizados</div>
-      <div class="ai-history-summary">${preview}</div>
-    </div>`;
-  }).join('');
-}
-
-function showAiHistoryItem(i) {
-  const a = aiAnalyses[i];
-  if (!a) return;
-  document.getElementById('aiAnalysisEmpty').classList.add('hidden');
-  document.getElementById('aiAnalysisLoading').classList.add('hidden');
-  document.getElementById('aiAnalysisResult').classList.remove('hidden');
-  document.getElementById('aiAnalysisContent').innerHTML = markdownToHtml(a.content);
-  document.getElementById('aiAnalysisDate').textContent = new Date(a.created_at).toLocaleString('es-ES');
-  document.getElementById('iacoach').scrollIntoView({ behavior:'smooth', block:'start' });
-}
-window.showAiHistoryItem = showAiHistoryItem;
-
-document.getElementById('generateAiAnalysisBtn').addEventListener('click', async () => {
-  if (trades.length < 3) {
-    showToast('⚠ Registra al menos 3 trades para generar un análisis útil', 'warn');
-    return;
-  }
-
-  document.getElementById('aiAnalysisEmpty').classList.add('hidden');
-  document.getElementById('aiAnalysisResult').classList.add('hidden');
-  document.getElementById('aiAnalysisLoading').classList.remove('hidden');
-
-  const loadingMsgs = [
-    'Revisando tu historial de trades...',
-    'Analizando patrones por sesión y horario...',
-    'Correlacionando tu psicología con resultados...',
-    'Generando recomendaciones personalizadas...'
-  ];
-  let msgIdx = 0;
-  const loadingInterval = setInterval(() => {
-    msgIdx = (msgIdx + 1) % loadingMsgs.length;
-    document.getElementById('aiLoadingText').textContent = loadingMsgs[msgIdx];
-  }, 2200);
-
-  try {
-    const summary = buildTradingDataSummary();
-    const result  = await callClaudeForAnalysis(summary);
-
-    clearInterval(loadingInterval);
-    document.getElementById('aiAnalysisLoading').classList.add('hidden');
-    document.getElementById('aiAnalysisResult').classList.remove('hidden');
-    document.getElementById('aiAnalysisContent').innerHTML = markdownToHtml(result);
-    document.getElementById('aiAnalysisDate').textContent = new Date().toLocaleString('es-ES');
-
-    const { data, error } = await insertAiAnalysis(currentUser.id, result, trades.length);
-    if (!error && data) {
-      aiAnalyses.unshift(data);
-      renderAiHistory();
-    }
-    showToast('✅ Análisis generado correctamente');
-    showSync();
-  } catch (err) {
-    clearInterval(loadingInterval);
-    document.getElementById('aiAnalysisLoading').classList.add('hidden');
-    document.getElementById('aiAnalysisEmpty').classList.remove('hidden');
-    showToast('⚠ No se pudo generar el análisis. Intenta de nuevo.', 'error');
-    console.error(err);
-  }
-});

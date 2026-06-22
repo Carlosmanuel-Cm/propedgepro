@@ -22,27 +22,6 @@
 .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
 .user-email{font-size:11px;color:var(--text3);margin-top:2px;}
 
-/* ═══ IA COACH ═══ */
-.ai-insight-card{border:1px solid rgba(167,139,250,.25);background:linear-gradient(135deg,rgba(167,139,250,.06),rgba(56,189,248,.04));}
-.ai-insight-text{font-size:14px;color:var(--text2);line-height:1.7;}
-.ai-empty-state{text-align:center;padding:60px 24px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;margin-bottom:20px;}
-.ai-empty-state span{font-size:48px;display:block;margin-bottom:16px;}
-.ai-empty-state p{font-size:14px;color:var(--text3);max-width:440px;margin:0 auto;line-height:1.6;}
-.ai-loading-state{text-align:center;padding:60px 24px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;margin-bottom:20px;}
-.ai-loading-spinner{width:40px;height:40px;border:3px solid var(--border2);border-top-color:var(--purple);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px;}
-.ai-loading-state p{font-size:13px;color:var(--text3);}
-.ai-report-content{font-size:14px;color:var(--text2);line-height:1.8;white-space:pre-wrap;}
-.ai-report-content h4{color:var(--text);font-size:15px;font-weight:800;margin:18px 0 8px;display:flex;align-items:center;gap:8px;}
-.ai-report-content h4:first-child{margin-top:0;}
-.ai-report-content ul{margin:8px 0 8px 18px;}
-.ai-report-content li{margin-bottom:6px;}
-.ai-report-content strong{color:var(--blue);}
-.ai-history-list{display:flex;flex-direction:column;gap:10px;}
-.ai-history-item{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 18px;cursor:pointer;transition:border-color .2s;}
-.ai-history-item:hover{border-color:var(--border2);}
-.ai-history-date{font-size:12px;color:var(--text3);margin-bottom:4px;}
-.ai-history-summary{font-size:13px;color:var(--text2);}
-.ai-empty-history{text-align:center;padding:24px;color:var(--text3);font-size:13px;}
 </style>
 </head>
 <body>
@@ -113,8 +92,7 @@
     <button class="menu-btn" data-section="payouts">💸 Módulo Payouts</button>
     <button class="menu-btn" data-section="psicologia">🧠 Diario Psicológico</button>
     <button class="menu-btn" data-section="logros">🏆 Logros</button>
-    <button class="menu-btn" data-section="iacoach">🤖 IA Coach</button>
-    <div class="sidebar-section">Configuración</div>
+<div class="sidebar-section">Configuración</div>
     <button class="menu-btn" data-section="settings">⚙️ Configuración</button>
     <button class="menu-btn" data-section="users">👥 Usuarios</button>
     <div class="sidebar-footer">
@@ -393,55 +371,6 @@
         <p style="font-size:12px;color:var(--text3);margin-top:8px;" id="logrosSubtitle">Completa logros para avanzar</p>
       </div>
       <div id="logrosList" class="logros-grid"></div>
-    </section>
-
-    <!-- IA COACH -->
-    <section id="iacoach" class="page">
-      <div class="page-header">
-        <div>
-          <div class="page-title">🤖 IA Coach</div>
-          <div class="page-subtitle">Análisis inteligente de tu trading, basado en tus datos reales</div>
-        </div>
-        <button class="action-btn btn-add" id="generateAiAnalysisBtn">⚡ Analizar Mi Trading</button>
-      </div>
-
-      <!-- Insight rápido -->
-      <div class="chart-card ai-insight-card">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-          <span style="font-size:22px;">💡</span>
-          <h3 style="margin:0;">Insight del Día</h3>
-        </div>
-        <div id="aiQuickInsight" class="ai-insight-text">
-          Registra al menos 5 trades para que la IA empiece a detectar patrones en tu trading.
-        </div>
-      </div>
-
-      <!-- Estado vacío / Loading / Resultado -->
-      <div id="aiAnalysisEmpty" class="ai-empty-state">
-        <span>🤖</span>
-        <p>Presiona <b>"Analizar Mi Trading"</b> para que la IA revise tu journal completo, tu psicología y tus prop firms, y te dé un reporte personalizado.</p>
-      </div>
-
-      <div id="aiAnalysisLoading" class="ai-loading-state hidden">
-        <div class="ai-loading-spinner"></div>
-        <p id="aiLoadingText">Analizando tus trades...</p>
-      </div>
-
-      <div id="aiAnalysisResult" class="hidden">
-        <div class="chart-card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-            <h3 style="margin:0;">📋 Reporte de Análisis</h3>
-            <span id="aiAnalysisDate" style="font-size:11px;color:var(--text3);"></span>
-          </div>
-          <div id="aiAnalysisContent" class="ai-report-content"></div>
-        </div>
-      </div>
-
-      <!-- Historial de análisis previos -->
-      <div class="chart-card">
-        <h3>📜 Historial de Análisis</h3>
-        <div id="aiHistoryList" class="ai-history-list"></div>
-      </div>
     </section>
 
     <!-- CONFIGURACIÓN -->
