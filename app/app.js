@@ -220,7 +220,7 @@ function initApp() {
   document.getElementById('dashEmail').textContent = currentUser?.email || '';
   document.getElementById('settingsBalance').value = getInitBalance();
 
-  renderNews(); renderTrades(); renderStats(); renderDashboard();
+  loadNews();   renderTrades(); renderStats(); renderDashboard();
   buildMiniCalendar(); buildEquityChart(); buildWeeklyChart(); buildDailyChart();
   buildAllStatCharts();
   renderRiskHistory(); renderPlaybook(); renderPropFirms();
@@ -433,18 +433,29 @@ function buildMiniCalendar(){
 }
 
 // NEWS
-const newsData=[
-  {time:'08:30',currency:'USD',impact:'high',  event:'Non-Farm Payrolls (NFP)',   prev:'175K', forecast:'185K', actual:'210K',beat:true},
-  {time:'08:30',currency:'USD',impact:'high',  event:'Unemployment Rate',          prev:'3.9%', forecast:'3.8%', actual:'3.7%',beat:true},
-  {time:'09:00',currency:'EUR',impact:'high',  event:'CPI Flash Estimate y/y',    prev:'2.4%', forecast:'2.3%', actual:'2.6%',beat:false},
-  {time:'10:00',currency:'USD',impact:'medium',event:'ISM Manufacturing PMI',     prev:'49.2', forecast:'50.0', actual:'48.5',beat:false},
-  {time:'10:30',currency:'GBP',impact:'high',  event:'CPI y/y',                   prev:'3.2%', forecast:'3.0%', actual:'',   beat:null},
-  {time:'11:00',currency:'EUR',impact:'high',  event:'ECB Interest Rate Decision',prev:'4.50%',forecast:'4.25%',actual:'',   beat:null},
-  {time:'13:30',currency:'USD',impact:'high',  event:'Core PCE Price Index m/m',  prev:'0.3%', forecast:'0.3%', actual:'',   beat:null},
-  {time:'14:00',currency:'USD',impact:'high',  event:'FOMC Meeting Minutes',      prev:'—',    forecast:'—',    actual:'',   beat:null},
-  {time:'15:30',currency:'GBP',impact:'medium',event:'Retail Sales m/m',          prev:'-0.4%',forecast:'0.3%', actual:'',   beat:null},
-  {time:'18:00',currency:'JPY',impact:'high',  event:'BOJ Interest Rate Decision',prev:'-0.10%',forecast:'0.00%',actual:'',  beat:null},
-];
+let newsData = [];
+
+async function loadNews() {
+  const tbody = document.getElementById('newsBody');
+  if (tbody) tbody.innerHTML =
+    '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:36px;">⏳ Cargando noticias en tiempo real...</td></tr>';
+  try {
+    const res = await fetch('/api/news');
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    newsData = json.events || [];
+  } catch (e) {
+    newsData = [];
+    if (tbody) tbody.innerHTML =
+      `<tr><td colspan="7" style="text-align:center;color:var(--red);padding:36px;">` +
+      `⚠ No se pudieron cargar las noticias: ${e.message}</td></tr>`;
+    return;
+  }
+  renderNews();
+  renderDashboard();
+}
+
 function renderNews(){
   const q=(document.getElementById('newsSearch')?.value||'').toLowerCase();
   let data=[...newsData];
