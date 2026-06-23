@@ -95,16 +95,6 @@ create table public.risk_history (
 alter table public.risk_history enable row level security;
 create policy "rh1" on public.risk_history for all using (auth.uid() = user_id);
 
-create table public.ai_analyses (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users on delete cascade not null,
-  content text,
-  trades_count int,
-  created_at timestamptz default now()
-);
-alter table public.ai_analyses enable row level security;
-create policy "ai1" on public.ai_analyses for all using (auth.uid() = user_id);
-
    ============================================================ */
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -283,19 +273,6 @@ export async function insertRiskHistory(uid, calc) {
   const { data, error } = await supabase.from('risk_history')
     .insert({ user_id: uid, ...calc }).select().single();
   return error ? er(error, 'insertRiskHistory') : ok(data);
-}
-
-/* ── IA COACH ─────────────────────────────────────────────────── */
-export async function fetchAiAnalyses(uid) {
-  const { data, error } = await supabase.from('ai_analyses').select('*')
-    .eq('user_id', uid).order('created_at', { ascending: false }).limit(10);
-  return error ? er(error, 'fetchAiAnalyses') : ok(data);
-}
-
-export async function insertAiAnalysis(uid, content, tradesCount) {
-  const { data, error } = await supabase.from('ai_analyses')
-    .insert({ user_id: uid, content, trades_count: tradesCount }).select().single();
-  return error ? er(error, 'insertAiAnalysis') : ok(data);
 }
 
 /* ── BACKUP COMPLETO ─────────────────────────────────────────── */
