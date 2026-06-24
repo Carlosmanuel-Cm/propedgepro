@@ -21,6 +21,15 @@
 .sync-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--green);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);padding:3px 10px;border-radius:20px;}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
 .user-email{font-size:11px;color:var(--text3);margin-top:2px;}
+.sidebar-account{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border);}
+.sidebar-account select{flex:1;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:8px;padding:6px 8px;font-size:12px;outline:none;cursor:pointer;}
+.sidebar-account-btn{background:none;border:1px solid var(--border2);border-radius:8px;color:var(--text2);padding:5px 8px;cursor:pointer;font-size:14px;line-height:1;}
+.sidebar-account-btn:hover{background:var(--bg3);color:var(--blue);}
+.account-item{display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg3);border-radius:10px;margin-bottom:8px;}
+.account-item-name{font-weight:700;font-size:14px;color:var(--text);}
+.account-item-meta{font-size:12px;color:var(--text3);margin-top:3px;}
+.account-archive-btn{background:none;border:1px solid var(--border2);color:var(--text3);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap;}
+.account-archive-btn:hover{border-color:var(--yellow);color:var(--yellow);}
 
 </style>
 </head>
@@ -78,6 +87,10 @@
 <div id="app" class="hidden">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">⚡ PropEdge <span class="pro-badge">PRO v5</span></div>
+    <div class="sidebar-account">
+      <select id="accountSelect"></select>
+      <button class="sidebar-account-btn" id="openAccountsModal" title="Gestionar cuentas">⚙️</button>
+    </div>
     <div class="sidebar-section">Principal</div>
     <button class="menu-btn active" data-section="dashboard">📊 Dashboard</button>
     <button class="menu-btn" data-section="news">📰 Noticias Forex</button>
@@ -521,6 +534,41 @@
     </div>
     <div class="form-group"><label>Comentarios del día</label><textarea id="psycComentarios" rows="4" placeholder="¿Cómo te sentiste? ¿Qué aprendiste hoy?" style="width:100%;padding:12px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-size:14px;resize:vertical;outline:none;font-family:inherit;"></textarea></div>
     <div class="modal-footer"><button class="btn-cancel" id="closePsycModal">Cancelar</button><button class="btn-save" id="savePsycBtn">Guardar Entrada</button></div>
+  </div>
+</div>
+
+<!-- MODAL CUENTAS -->
+<div class="modal-overlay hidden" id="accountsModal">
+  <div class="modal">
+    <h2>🏦 Mis Cuentas</h2>
+    <div id="accountsList"></div>
+    <hr style="border-color:var(--border);margin:18px 0;">
+    <h3 style="font-size:14px;color:var(--text2);margin-bottom:14px;">➕ Nueva Cuenta</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Firma / Nombre</label><input type="text" id="acctFirmName" placeholder="ej: FTMO Challenge" /></div>
+      <div class="form-group"><label>Tipo</label>
+        <select id="acctType">
+          <option value="challenge">Challenge</option>
+          <option value="funded">Funded</option>
+          <option value="personal">Personal</option>
+          <option value="demo">Demo</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Balance Inicial ($)</label><input type="number" id="acctInitBalance" placeholder="100000" /></div>
+      <div class="form-group"><label>Moneda</label>
+        <select id="acctCurrency">
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="closeAccountsModal">Cerrar</button>
+      <button class="btn-save" id="saveAccountBtn">➕ Crear Cuenta</button>
+    </div>
   </div>
 </div>
 

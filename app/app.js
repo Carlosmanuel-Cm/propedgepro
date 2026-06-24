@@ -17,7 +17,8 @@ import {
   supabase,
   signIn, signUp, signOut, getSession, getProfile,
   updateInitBalance, updatePassword, resetPassword,
-  fetchTrades, insertTrade, updateTrade, deleteTrade, deleteAllTrades,
+  fetchTrades, insertTrade, updateTrade, deleteTrade, deleteAllTrades, fetchAccounts,
+  createAccount, archiveAccount,
   fetchPropFirms, upsertPropFirm, deletePropFirm,
   fetchPayouts, insertPayout, deletePayout as deletePayoutDB,
   fetchPlaybook, insertPlaybookRule, deletePlaybookRule,
@@ -27,8 +28,8 @@ fetchAllDataForBackup, restoreAllData
 } from './supabase.js';
 
 // ── STATE ─────────────────────────────────────────────────────
-let trades=[], riskHistory=[], playbook=[], propFirms=[], payouts=[], psycEntries=[];
-let currentUser=null, currentProfile=null;
+let trades=[], accounts=[], riskHistory=[], playbook=[], propFirms=[], payouts=[], psycEntries=[];
+let currentUser=null, currentProfile=null, currentAccountId=null;
 let newsFilter='all', isDark=true, editIndex=null, editPropIdx=null, editTradeId=null;
 let charts={};
 
@@ -191,8 +192,9 @@ function translateAuthError(msg) {
 // ── CARGA INICIAL DE DATOS ────────────────────────────────────
 async function loadAllData() {
   const uid = currentUser.id;
+  await loadAccounts();
   const [t, pf, py, pl, ps, rh] = await Promise.all([
-    fetchTrades(uid), fetchPropFirms(uid), fetchPayouts(uid),
+    fetchTrades(uid, currentAccountId), fetchPropFirms(uid), fetchPayouts(uid),
     fetchPlaybook(uid), fetchPsyc(uid), fetchRiskHistory(uid)
   ]);
   trades      = t.data  || [];
@@ -202,6 +204,57 @@ async function loadAllData() {
   psycEntries = ps.data || [];
   riskHistory = rh.data || [];
 }
+
+async function loadAccounts() {
+  const { data } = await fetchAccounts();
+  accounts = data || [];
+  if (!currentAccountId && accounts.length) {
+    const def = accounts.find(a => a.is_default) || accounts[0];
+    currentAccountId = def.id;
+  }
+  renderAccountSelect();
+}
+
+async function switchAccount(accountId) {
+  currentAccountId = accountId;
+  renderAccountSelect();
+  const { data } = await fetchTrades(currentUser.id, accountId);
+  trades = data || [];
+  refreshAll();
+}
+
+function renderAccountSelect() {
+  const sel = document.getElementById('accountSelect');
+  if (!sel) return;
+  sel.innerHTML = accounts.length
+    ? accounts.map(a => `<option value="${a.id}" ${a.id === currentAccountId ? 'selected' : ''}>${a.firm_name || 'Cuenta Principal'}</option>`).join('')
+    : '<option>Sin cuentas</option>';
+}
+
+function renderAccountsList() {
+  const el = document.getElementById('accountsList');
+  if (!el) return;
+  const active = accounts.filter(a => a.status !== 'archived');
+  if (!active.length) { el.innerHTML = '<p style="color:var(--text3);text-align:center;padding:16px;">Sin cuentas activas.</p>'; return; }
+  el.innerHTML = active.map(a =>
+    `<div class="account-item">
+      <div>
+        <div class="account-item-name">${a.firm_name || 'Cuenta Principal'}</div>
+        <div class="account-item-meta">${a.account_type || '—'} · $${Number(a.current_balance ?? a.initial_balance ?? 0).toLocaleString()} · ${a.status}</div>
+      </div>
+      <button class="account-archive-btn" onclick="archiveAccountRow('${a.id}')">Archivar</button>
+    </div>`
+  ).join('');
+}
+
+async function archiveAccountRow(id) {
+  const { error } = await archiveAccount(id);
+  if (error) { showToast('⚠ Error archivando', 'error'); return; }
+  await loadAccounts();
+  renderAccountsList();
+  showToast('✅ Cuenta archivada', 'warn'); showSync();
+}
+window.archiveAccountRow = archiveAccountRow;
 
 // ── ENTRAR A LA APP ───────────────────────────────────────────
 function enterApp() {
@@ -310,6 +363,37 @@ updateSessions(); setInterval(updateSessions,30000);
     if(error){errEl.textContent='⚠ '+translateAuthError(error.message);errEl.style.display='block';return;}
     showToast('✅ Usuario creado: '+username);
     ['inviteEmail','invitePass','inviteUsername'].forEach(id=>document.getElementById(id).value='');
+  });
+
+  // Selector de cuenta en sidebar
+  document.getElementById('accountSelect').addEventListener('change', e => switchAccount(e.target.value));
+
+  // Modal Mis Cuentas
+  document.getElementById('openAccountsModal').addEventListener('click', () => {
+    renderAccountsList();
+    document.getElementById('accountsModal').classList.remove('hidden');
+  });
+  document.getElementById('closeAccountsModal').addEventListener('click', () =>
+    document.getElementById('accountsModal').classList.add('hidden')
+  );
+  document.getElementById('saveAccountBtn').addEventListener('click', async () => {
+    const firm_name = document.getElementById('acctFirmName').value.trim();
+    const initial_balance = parseFloat(document.getElementById('acctInitBalance').value) || 0;
+    if (!firm_name) { showToast('⚠ Escribe un nombre para la cuenta', 'warn'); return; }
+    const { data, error } = await createAccount({
+      firm_name,
+      account_type: document.getElementById('acctType').value,
+      status: 'active',
+      initial_balance,
+      currency: document.getElementById('acctCurrency').value,
+      notes: '',
+    });
+    if (error) { showToast('⚠ Error creando cuenta', 'error'); return; }
+    document.getElementById('acctFirmName').value = '';
+    document.getElementById('acctInitBalance').value = '';
+    await loadAccounts();
+    renderAccountsList();
+    showToast('✅ Cuenta creada: ' + data.firm_name); showSync();
   });
 }
 
@@ -586,6 +670,7 @@ document.getElementById('saveTradeBtn').addEventListener('click', async ()=>{
     setup:document.getElementById('tSetup').value,
     emotion:document.getElementById('tEmotion').value,
     notes:document.getElementById('tNotes').value,
+    account_id: currentAccountId,
   };
   if(!trade.date){showToast('⚠ Completa la fecha','warn');return;}
   showLoading('Guardando trade...');

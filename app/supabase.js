@@ -154,10 +154,12 @@ export async function resetPassword(email) {
 }
 
 /* ── TRADES ─────────────────────────────────────────────────── */
-export async function fetchTrades(uid) {
-  const { data, error } = await supabase.from('trades').select('*')
+export async function fetchTrades(uid, accountId = null) {
+  let query = supabase.from('trades').select('*')
     .eq('user_id', uid).order('date', { ascending: true })
     .order('time', { ascending: true });
+  if (accountId) query = query.eq('account_id', accountId);
+  const { data, error } = await query;
   return error ? er(error, 'fetchTrades') : ok(data);
 }
 
@@ -181,6 +183,38 @@ export async function deleteTrade(id) {
 export async function deleteAllTrades(uid) {
   const { error } = await supabase.from('trades').delete().eq('user_id', uid);
   return error ? er(error) : ok(true);
+}
+
+/* ── ACCOUNTS ────────────────────────────────────────────────── */
+export async function fetchAccounts() {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase.from('accounts').select('*')
+    .eq('user_id', user.id).order('created_at', { ascending: true });
+  return error ? er(error, 'fetchAccounts') : ok(data);
+}
+
+export async function createAccount({ firm_name, account_type, status, initial_balance, currency, notes }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase.from('accounts')
+    .insert({
+      user_id: user.id,
+      firm_name, account_type, status,
+      initial_balance, current_balance: initial_balance,
+      currency, notes
+    }).select().single();
+  return error ? er(error, 'createAccount') : ok(data);
+}
+
+export async function updateAccount(accountId, fields) {
+  const { data, error } = await supabase.from('accounts')
+    .update(fields).eq('id', accountId).select().single();
+  return error ? er(error, 'updateAccount') : ok(data);
+}
+
+export async function archiveAccount(accountId) {
+  const { data, error } = await supabase.from('accounts')
+    .update({ status: 'archived' }).eq('id', accountId).select().single();
+  return error ? er(error, 'archiveAccount') : ok(data);
 }
 
 /* ── PROP FIRMS ─────────────────────────────────────────────── */
