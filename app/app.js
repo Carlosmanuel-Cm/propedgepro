@@ -443,7 +443,9 @@ function calcStats(arr) {
 
 function renderDashboard(){
   const{total,wins,wr,pf,maxDD,currentDD,maxW,maxL,avgPer}=calcStats(trades);
-  const initBal=getInitBalance(), balance=initBal+total;
+  const activeAccount = accounts.find(a => a.id === currentAccountId) || {};
+  const initBal = parseFloat(activeAccount.initial_balance) || getInitBalance();
+  const balance = initBal + total;
   document.getElementById('dashBalanceInit').textContent='$'+initBal.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('dashBalance').textContent='$'+balance.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
   document.getElementById('dashEquity').textContent='$'+balance.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
