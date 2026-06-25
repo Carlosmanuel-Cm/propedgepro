@@ -6,6 +6,8 @@
 <title>PropEdge Pro v5</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 <style>
 .login-tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:12px;margin-bottom:22px;}
@@ -276,6 +278,7 @@
       <div class="journal-actions">
         <button class="action-btn btn-add" id="openTradeModal">+ Agregar Trade</button>
         <button class="action-btn btn-export" id="exportCsvBtn">⬇ Exportar CSV</button>
+        <button class="action-btn btn-pdf" id="exportPdfBtn">📄 Exportar PDF</button>
         <button class="action-btn btn-import" id="openImportModal">⬆ Importar CSV</button>
         <button class="action-btn btn-del" id="clearAllBtn">🗑 Borrar Todo</button>
       </div>
@@ -628,6 +631,28 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- MODAL EXPORTAR PDF -->
+<div class="modal-overlay hidden" id="pdfModal">
+  <div class="modal" style="max-width:380px;">
+    <h2>📄 Exportar PDF</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Rango de fechas opcional — deja vacío para exportar todo el historial.</p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Desde</label>
+        <input type="date" id="pdfDateFrom" />
+      </div>
+      <div class="form-group">
+        <label>Hasta</label>
+        <input type="date" id="pdfDateTo" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="closePdfModal">Cancelar</button>
+      <button class="btn-save" id="generatePdfBtn">📄 Generar PDF</button>
+    </div>
   </div>
 </div>
 

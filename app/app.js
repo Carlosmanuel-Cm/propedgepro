@@ -1024,6 +1024,101 @@ document.getElementById('exportCsvBtn').addEventListener('click',()=>{
   a.download='propedge_trades.csv';a.click();showToast('✅ CSV exportado');
 });
 
+// PDF Export
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  document.getElementById('pdfDateFrom').value = '';
+  document.getElementById('pdfDateTo').value = '';
+  document.getElementById('pdfModal').classList.remove('hidden');
+});
+
+document.getElementById('closePdfModal').addEventListener('click', () =>
+  document.getElementById('pdfModal').classList.add('hidden')
+);
+
+document.getElementById('generatePdfBtn').addEventListener('click', () => {
+  const from = document.getElementById('pdfDateFrom').value;
+  const to   = document.getElementById('pdfDateTo').value;
+
+  const activeAccount = accounts.find(a => a.id === currentAccountId) || {};
+  const firmName = activeAccount.firm_name || 'Cuenta Principal';
+
+  let filtered = [...trades].sort((a, b) => a.date.localeCompare(b.date));
+  if (from) filtered = filtered.filter(t => t.date >= from);
+  if (to)   filtered = filtered.filter(t => t.date <= to);
+
+  if (!filtered.length) { showToast('⚠ Sin trades en el rango seleccionado', 'warn'); return; }
+
+  const { total, wins, losses, wr } = calcStats(filtered);
+  const initBal = parseFloat(activeAccount.initial_balance) || getInitBalance();
+  const balance = initBal + total;
+  const today   = new Date().toISOString().split('T')[0];
+  const rangeLabel = (from || to) ? `${from || '—'}  →  ${to || '—'}` : 'Histórico completo';
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 14;
+
+  // ── Encabezado
+  doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+  doc.text('PropEdge Pro — Reporte de Trading', margin, 18);
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text(`Firma: ${firmName}`, margin, 26);
+  doc.text(`Período: ${rangeLabel}`, margin, 32);
+  doc.setDrawColor(180); doc.line(margin, 36, pageW - margin, 36);
+
+  // ── Resumen
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+  doc.text('Resumen', margin, 44);
+  doc.autoTable({
+    startY: 48,
+    head: [['Métrica', 'Valor']],
+    body: [
+      ['Balance Inicial', `$${initBal.toLocaleString('en', {minimumFractionDigits:2})}`],
+      ['Balance Actual',  `$${balance.toLocaleString('en', {minimumFractionDigits:2})}`],
+      ['P&L Total',       `${total >= 0 ? '+' : ''}$${total.toFixed(2)}`],
+      ['Total de Trades', filtered.length],
+      ['Wins / Losses',   `${wins.length} / ${losses.length}`],
+      ['Win Rate',        `${wr}%`],
+    ],
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [6, 95, 70] },
+    columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 55 } },
+    margin: { left: margin, right: margin },
+    tableWidth: 'wrap',
+  });
+
+  // ── Tabla de trades
+  const afterSummary = doc.lastAutoTable.finalY + 8;
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+  doc.text('Trades', margin, afterSummary);
+  doc.autoTable({
+    startY: afterSummary + 4,
+    head: [['Fecha', 'Par', 'Tipo', 'Lote', 'P&L', 'Resultado']],
+    body: filtered.map(t => [
+      t.date  || '',
+      t.pair  || '',
+      t.type  || '',
+      t.lot   || '',
+      `${parseFloat(t.pnl) >= 0 ? '+' : ''}${parseFloat(t.pnl || 0).toFixed(2)}`,
+      (t.result || '').toUpperCase(),
+    ]),
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [6, 95, 70] },
+    margin: { left: margin, right: margin },
+    didDrawPage: (data) => {
+      doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(150);
+      doc.text(`Generado el ${today}   ·   Página ${data.pageNumber}`, pageW / 2, pageH - 8, { align: 'center' });
+      doc.setTextColor(0);
+    },
+  });
+
+  doc.save(`PropEdge_${firmName.replace(/\s+/g, '_')}_${today}.pdf`);
+  document.getElementById('pdfModal').classList.add('hidden');
+  showToast('✅ PDF generado');
+});
+
 // BACKUP
 async function downloadBackup(){
   showLoading('Generando backup...');

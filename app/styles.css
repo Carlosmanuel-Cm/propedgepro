@@ -189,6 +189,8 @@ textarea { font-family:inherit; }
 .btn-export:hover { background:#047857; }
 .btn-import { background:#5b21b6; }
 .btn-import:hover { background:#6d28d9; }
+.btn-pdf { background:#92400e; }
+.btn-pdf:hover { background:#b45309; }
 .btn-del { background:#7f1d1d; }
 .btn-del:hover { background:#991b1b; }
 .trades-wrap { background:var(--bg2); border:1px solid var(--border); border-radius:16px; overflow:auto; box-shadow:var(--shadow); }
