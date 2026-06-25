@@ -443,9 +443,18 @@ updateSessions(); setInterval(updateSessions,30000);
     document.getElementById('importModal').classList.remove('hidden');
   });
 
-  document.getElementById('closeImportModal').addEventListener('click', () =>
-    document.getElementById('importModal').classList.add('hidden')
-  );
+  function resetAndCloseImportModal() {
+    importParsed = null; importValidTrades = []; importErrors = [];
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('importMappingContainer').innerHTML = '';
+    document.getElementById('importPreviewContainer').innerHTML = '';
+    document.getElementById('importResultSummary').classList.add('hidden');
+    document.getElementById('confirmImportBtn').disabled = false;
+    showImportStep(1);
+    document.getElementById('importModal').classList.add('hidden');
+  }
+  document.getElementById('closeImportModal').addEventListener('click', resetAndCloseImportModal);
+  document.getElementById('closeImportModalX').addEventListener('click', resetAndCloseImportModal);
 
   document.getElementById('importStep1Next').addEventListener('click', async () => {
     const file = document.getElementById('csvFileInput').files[0];
@@ -476,6 +485,12 @@ updateSessions(); setInterval(updateSessions,30000);
 
   document.getElementById('confirmImportBtn').addEventListener('click', async () => {
     if (!importValidTrades.length) { showToast('⚠ No hay trades válidos para importar', 'warn'); return; }
+    const btn = document.getElementById('confirmImportBtn');
+    const closeX = document.getElementById('closeImportModalX');
+    const closeCancel = document.getElementById('closeImportModal');
+    btn.disabled = true;
+    closeX.disabled = true;
+    closeCancel.disabled = true;
     showLoading(`Importando ${importValidTrades.length} trades...`);
     const toInsert = importValidTrades.map(t => ({ ...t, user_id: currentUser.id }));
     const { data, error } = await bulkInsertTrades(toInsert);
@@ -486,10 +501,15 @@ updateSessions(); setInterval(updateSessions,30000);
     if (error) {
       summaryEl.innerHTML = `<span style="color:var(--red);">⚠ Error en fila ${inserted + 1}. Se importaron ${inserted} trades antes del fallo.</span>`;
       showToast(`⚠ Importación parcial: ${inserted} trades`, 'error');
+      btn.disabled = false;
+      closeX.disabled = false;
+      closeCancel.disabled = false;
     } else {
       summaryEl.innerHTML = `<span style="color:var(--green);">✅ ${inserted} trades importados.${importErrors.length ? ` ${importErrors.length} filas omitidas.` : ''}</span>`;
       showToast(`✅ ${inserted} trades importados`); showSync();
       await loadAllData(); refreshAll();
+      closeX.disabled = false;
+      closeCancel.disabled = false;
     }
   });
 }

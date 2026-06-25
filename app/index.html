@@ -575,7 +575,10 @@
 <!-- MODAL IMPORTAR CSV -->
 <div class="modal-overlay hidden" id="importModal">
   <div class="modal">
-    <h2>⬆ Importar CSV</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <h2 style="margin:0;">⬆ Importar CSV</h2>
+      <button id="closeImportModalX" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text2);padding:2px 6px;" title="Cerrar">✕</button>
+    </div>
 
     <!-- PASO 1: Archivo + cuenta + formato -->
     <div id="importStep1">
