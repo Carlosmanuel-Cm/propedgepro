@@ -185,6 +185,21 @@ export async function deleteAllTrades(uid) {
   return error ? er(error) : ok(true);
 }
 
+export async function bulkInsertTrades(tradesArray) {
+  const CHUNK_SIZE = 200;
+  let insertedCount = 0;
+  for (let i = 0; i < tradesArray.length; i += CHUNK_SIZE) {
+    const chunk = tradesArray.slice(i, i + CHUNK_SIZE);
+    const { data, error } = await supabase.from('trades').insert(chunk).select('id');
+    if (error) {
+      console.error('[DB/bulkInsertTrades]', error?.message || error);
+      return { data: { insertedCount }, error };
+    }
+    insertedCount += data.length;
+  }
+  return ok({ insertedCount });
+}
+
 /* ── ACCOUNTS ────────────────────────────────────────────────── */
 export async function fetchAccounts() {
   const { data: { user } } = await supabase.auth.getUser();
