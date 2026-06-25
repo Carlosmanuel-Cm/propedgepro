@@ -795,25 +795,93 @@ document.getElementById('clearAllBtn').addEventListener('click', async ()=>{
   hideLoading(); trades=[]; refreshAll(); showToast('🗑 Trades eliminados','warn'); showSync();
 });
 
-// CSV
-document.getElementById('importCsvBtn').addEventListener('click',()=>document.getElementById('csvFileInput').click());
-document.getElementById('csvFileInput').addEventListener('change', async e=>{
-  const file=e.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=async ev=>{
-    const lines=ev.target.result.split('\n').filter(l=>l.trim());
-    if(lines.length<2){showToast('⚠ CSV vacío','warn');return;}
-    const rows=lines.slice(1).map(line=>{const c=line.split(',').map(x=>x.replace(/^"|"$/g,'').trim());return{date:c[0],pair:c[1],type:c[2],lot:parseFloat(c[3])||null,entry:parseFloat(c[4])||null,sl:parseFloat(c[5])||null,tp:parseFloat(c[6])||null,pnl:parseFloat(c[7])||0,session:c[8]||'',notes:c[9]||''};}).filter(t=>t.date&&t.pnl!==undefined);
-    if(!rows.length){showToast('⚠ Sin trades válidos','warn');return;}
-    if(!confirm(`¿Importar ${rows.length} trades a la nube?`))return;
-    showLoading(`Importando ${rows.length} trades...`);
-    const {error}=await supabase.from('trades').insert(rows.map(r=>({user_id:currentUser.id,...r})));
-    if(error){hideLoading();showToast('⚠ Error importando','error');return;}
-    await loadAllData(); hideLoading(); refreshAll();
-    showToast(`✅ ${rows.length} trades importados`); showSync();
+// CSV IMPORT UTILITIES
+function parseCsvFile(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: results => resolve({ headers: results.meta.fields || [], rows: results.data }),
+      error: err => reject(err),
+    });
+  });
+}
+
+const CSV_FIELD_OPTIONS = [
+  { field: 'date',    label: 'Fecha',        required: true  },
+  { field: 'pair',    label: 'Par',          required: true  },
+  { field: 'type',    label: 'Tipo',         required: true  },
+  { field: 'pnl',     label: 'P&L',          required: true  },
+  { field: 'time',    label: 'Hora',         required: false },
+  { field: 'lot',     label: 'Lote',         required: false },
+  { field: 'entry',   label: 'Entrada',      required: false },
+  { field: 'sl',      label: 'Stop Loss',    required: false },
+  { field: 'tp',      label: 'Take Profit',  required: false },
+  { field: 'risk',    label: 'Riesgo',       required: false },
+  { field: 'rr',      label: 'R:R',          required: false },
+  { field: 'session', label: 'Sesión',       required: false },
+  { field: 'setup',   label: 'Setup',        required: false },
+  { field: 'emotion', label: 'Emoción',      required: false },
+  { field: 'notes',   label: 'Notas',        required: false },
+];
+
+function parseDateFlexible(value, format) {
+  if (!value) return null;
+  const v = value.trim();
+  let y, m, d;
+  if      (format === 'YYYY-MM-DD') { const p = v.split('-'); y=p[0]; m=p[1]; d=p[2]; }
+  else if (format === 'DD/MM/YYYY') { const p = v.split('/'); d=p[0]; m=p[1]; y=p[2]; }
+  else if (format === 'MM/DD/YYYY') { const p = v.split('/'); m=p[0]; d=p[1]; y=p[2]; }
+  else if (format === 'YYYY.MM.DD') { const p = v.split('.'); y=p[0]; m=p[1]; d=p[2]; }
+  else return null;
+  if (!y || !m || !d) return null;
+  const iso = `${y.padStart(4,'0')}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  return isNaN(Date.parse(iso)) ? null : iso;
+}
+
+function buildTradesFromMapping(rows, columnMapping, dateFormat, accountId) {
+  const validTrades = [], errors = [];
+  const normalizeType = raw => {
+    const v = (raw || '').trim().toLowerCase();
+    if (['buy', 'long'].includes(v))   return 'buy';
+    if (['sell', 'short'].includes(v)) return 'sell';
+    return null;
   };
-  reader.readAsText(file); e.target.value='';
-});
+  rows.forEach((row, idx) => {
+    const rowNum = idx + 2;
+    const get = field => { const col = columnMapping[field]; return col ? (row[col] ?? '').toString().trim() : ''; };
+    const num = field => { const v = get(field); return v !== '' ? (parseFloat(v) ?? null) : null; };
+    const rawDate = get('date');
+    const pair    = get('pair');
+    const rawType = get('type');
+    const rawPnl  = get('pnl');
+    const date    = parseDateFlexible(rawDate, dateFormat);
+    const type    = normalizeType(rawType);
+    const pnl     = rawPnl !== '' ? parseFloat(rawPnl) : null;
+    const rowErrors = [];
+    if (!date)                       rowErrors.push('fecha inválida');
+    if (!pair)                       rowErrors.push('par vacío');
+    if (!type)                       rowErrors.push(`tipo no reconocido: "${rawType}"`);
+    if (pnl === null || isNaN(pnl))  rowErrors.push('P&L inválido');
+    if (rowErrors.length) { errors.push({ row: rowNum, reasons: rowErrors }); return; }
+    validTrades.push({
+      account_id: accountId,
+      date, pair, type, pnl,
+      time:    get('time')    || null,
+      lot:     num('lot'),
+      entry:   num('entry'),
+      sl:      num('sl'),
+      tp:      num('tp'),
+      risk:    num('risk'),
+      rr:      get('rr')      || null,
+      session: get('session') || null,
+      setup:   get('setup')   || null,
+      emotion: get('emotion') || null,
+      notes:   get('notes')   || null,
+    });
+  });
+  return { validTrades, errors };
+}
 
 document.getElementById('exportCsvBtn').addEventListener('click',()=>{
   if(!trades.length){showToast('Sin trades para exportar','warn');return;}
