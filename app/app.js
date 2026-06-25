@@ -18,7 +18,7 @@ import {
   signIn, signUp, signOut, getSession, getProfile,
   updateInitBalance, updatePassword, resetPassword,
   fetchTrades, insertTrade, updateTrade, deleteTrade, deleteAllTrades, fetchAccounts,
-  createAccount, archiveAccount,
+  createAccount, archiveAccount, getTradeCountForAccount, deleteAccount,
   fetchPropFirms, upsertPropFirm, deletePropFirm,
   fetchPayouts, insertPayout, deletePayout as deletePayoutDB,
   fetchPlaybook, insertPlaybookRule, deletePlaybookRule,
@@ -231,20 +231,30 @@ function renderAccountSelect() {
     : '<option>Sin cuentas</option>';
 }
 
-function renderAccountsList() {
+async function renderAccountsList() {
   const el = document.getElementById('accountsList');
   if (!el) return;
   const active = accounts.filter(a => a.status !== 'archived');
   if (!active.length) { el.innerHTML = '<p style="color:var(--text3);text-align:center;padding:16px;">Sin cuentas activas.</p>'; return; }
-  el.innerHTML = active.map(a =>
-    `<div class="account-item">
-      <div>
-        <div class="account-item-name">${a.firm_name || 'Cuenta Principal'}</div>
-        <div class="account-item-meta">${a.account_type || '—'} · $${Number(a.current_balance ?? a.initial_balance ?? 0).toLocaleString()} · ${a.status}</div>
-      </div>
-      <button class="account-archive-btn" onclick="archiveAccountRow('${a.id}')">Archivar</button>
-    </div>`
-  ).join('');
+  const counts = await Promise.all(active.map(a => getTradeCountForAccount(a.id)));
+  el.innerHTML = active.map((a, i) => {
+    const n = counts[i];
+    const deleteBtn = n === 0
+      ? `<button class="account-archive-btn" style="border-color:var(--red);color:var(--red);" onclick="deleteAccountRow('${a.id}')">Eliminar</button>`
+      : `<span style="font-size:11px;color:var(--text3);">${n} trade${n===1?'':'s'}</span>`;
+    return (
+      `<div class="account-item">
+        <div>
+          <div class="account-item-name">${a.firm_name || 'Cuenta Principal'}</div>
+          <div class="account-item-meta">${a.account_type || '—'} · $${Number(a.current_balance ?? a.initial_balance ?? 0).toLocaleString()} · ${a.status}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${deleteBtn}
+          <button class="account-archive-btn" onclick="archiveAccountRow('${a.id}')">Archivar</button>
+        </div>
+      </div>`
+    );
+  }).join('');
 }
 
 async function archiveAccountRow(id) {
@@ -255,6 +265,28 @@ async function archiveAccountRow(id) {
   showToast('✅ Cuenta archivada', 'warn'); showSync();
 }
 window.archiveAccountRow = archiveAccountRow;
+
+async function deleteAccountRow(id) {
+  if (!confirm('¿Eliminar esta cuenta permanentemente? Esta acción no se puede deshacer.')) return;
+  const { error } = await deleteAccount(id);
+  if (error) { showToast('⚠ Error eliminando cuenta', 'error'); return; }
+  if (currentAccountId === id) {
+    const remaining = accounts.filter(a => a.id !== id);
+    const next = remaining.find(a => a.is_default) || remaining[0] || null;
+    currentAccountId = next ? next.id : null;
+    if (currentAccountId) {
+      const { data } = await fetchTrades(currentUser.id, currentAccountId);
+      trades = data || [];
+    } else {
+      trades = [];
+    }
+    refreshAll();
+  }
+  await loadAccounts();
+  renderAccountsList();
+  showToast('🗑 Cuenta eliminada', 'warn'); showSync();
+}
+window.deleteAccountRow = deleteAccountRow;
 
 // ── ENTRAR A LA APP ───────────────────────────────────────────
 function enterApp() {

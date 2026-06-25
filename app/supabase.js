@@ -217,6 +217,18 @@ export async function archiveAccount(accountId) {
   return error ? er(error, 'archiveAccount') : ok(data);
 }
 
+export async function getTradeCountForAccount(accountId) {
+  const { count, error } = await supabase.from('trades')
+    .select('id', { count: 'exact', head: true })
+    .eq('account_id', accountId);
+  return error ? 0 : count;
+}
+
+export async function deleteAccount(accountId) {
+  const { error } = await supabase.from('accounts').delete().eq('id', accountId);
+  return error ? er(error, 'deleteAccount') : ok(true);
+}
+
 /* ── PROP FIRMS ─────────────────────────────────────────────── */
 export async function fetchPropFirms(uid) {
   const { data, error } = await supabase.from('prop_firms').select('*')
