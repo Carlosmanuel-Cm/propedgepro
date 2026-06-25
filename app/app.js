@@ -24,12 +24,14 @@ import {
   fetchPlaybook, insertPlaybookRule, deletePlaybookRule,
   fetchPsyc, insertPsyc, deletePsycEntry,
   fetchRiskHistory, insertRiskHistory,
-fetchAllDataForBackup, restoreAllData
+fetchAllDataForBackup, restoreAllData,
+bulkInsertTrades,
 } from './supabase.js';
 
 // ── STATE ─────────────────────────────────────────────────────
 let trades=[], accounts=[], riskHistory=[], playbook=[], propFirms=[], payouts=[], psycEntries=[];
 let currentUser=null, currentProfile=null, currentAccountId=null;
+let importParsed=null, importValidTrades=[], importErrors=[];
 let newsFilter='all', isDark=true, editIndex=null, editPropIdx=null, editTradeId=null;
 let charts={};
 
@@ -426,6 +428,69 @@ updateSessions(); setInterval(updateSessions,30000);
     await loadAccounts();
     renderAccountsList();
     showToast('✅ Cuenta creada: ' + data.firm_name); showSync();
+  });
+
+  // Modal Importar CSV
+  document.getElementById('openImportModal').addEventListener('click', () => {
+    importParsed = null; importValidTrades = []; importErrors = [];
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('importMappingContainer').innerHTML = '';
+    document.getElementById('importPreviewContainer').innerHTML = '';
+    document.getElementById('importResultSummary').classList.add('hidden');
+    const sel = document.getElementById('importAccountSelect');
+    sel.innerHTML = accounts.filter(a => a.status !== 'archived').map(a => `<option value="${a.id}" ${a.id === currentAccountId ? 'selected' : ''}>${a.firm_name || 'Cuenta Principal'}</option>`).join('') || '<option>Sin cuentas</option>';
+    showImportStep(1);
+    document.getElementById('importModal').classList.remove('hidden');
+  });
+
+  document.getElementById('closeImportModal').addEventListener('click', () =>
+    document.getElementById('importModal').classList.add('hidden')
+  );
+
+  document.getElementById('importStep1Next').addEventListener('click', async () => {
+    const file = document.getElementById('csvFileInput').files[0];
+    if (!file) { showToast('⚠ Selecciona un archivo CSV', 'warn'); return; }
+    try { importParsed = await parseCsvFile(file); }
+    catch { showToast('⚠ Error leyendo el CSV', 'error'); return; }
+    if (!importParsed.headers.length) { showToast('⚠ El CSV no tiene encabezados', 'warn'); return; }
+    renderImportMapping(importParsed.headers);
+    showImportStep(2);
+  });
+
+  document.getElementById('importStep2Back').addEventListener('click', () => showImportStep(1));
+
+  document.getElementById('importStep2Next').addEventListener('click', () => {
+    const mapping = {};
+    CSV_FIELD_OPTIONS.forEach(f => { const v = document.getElementById(`importMap_${f.field}`)?.value; if (v) mapping[f.field] = v; });
+    const missing = CSV_FIELD_OPTIONS.filter(f => f.required && !mapping[f.field]);
+    if (missing.length) { showToast(`⚠ Mapea los campos requeridos: ${missing.map(f=>f.label).join(', ')}`, 'warn'); return; }
+    const accountId = document.getElementById('importAccountSelect').value;
+    const dateFormat = document.getElementById('importDateFormat').value;
+    ({ validTrades: importValidTrades, errors: importErrors } = buildTradesFromMapping(importParsed.rows, mapping, dateFormat, accountId));
+    if (!importValidTrades.length && !importErrors.length) { showToast('⚠ El CSV no tiene filas con datos', 'warn'); return; }
+    renderImportPreview(importValidTrades, importErrors);
+    showImportStep(3);
+  });
+
+  document.getElementById('importStep3Back').addEventListener('click', () => showImportStep(2));
+
+  document.getElementById('confirmImportBtn').addEventListener('click', async () => {
+    if (!importValidTrades.length) { showToast('⚠ No hay trades válidos para importar', 'warn'); return; }
+    showLoading(`Importando ${importValidTrades.length} trades...`);
+    const toInsert = importValidTrades.map(t => ({ ...t, user_id: currentUser.id }));
+    const { data, error } = await bulkInsertTrades(toInsert);
+    hideLoading();
+    const inserted = data?.insertedCount ?? 0;
+    const summaryEl = document.getElementById('importResultSummary');
+    summaryEl.classList.remove('hidden');
+    if (error) {
+      summaryEl.innerHTML = `<span style="color:var(--red);">⚠ Error en fila ${inserted + 1}. Se importaron ${inserted} trades antes del fallo.</span>`;
+      showToast(`⚠ Importación parcial: ${inserted} trades`, 'error');
+    } else {
+      summaryEl.innerHTML = `<span style="color:var(--green);">✅ ${inserted} trades importados.${importErrors.length ? ` ${importErrors.length} filas omitidas.` : ''}</span>`;
+      showToast(`✅ ${inserted} trades importados`); showSync();
+      await loadAllData(); refreshAll();
+    }
   });
 }
 
@@ -881,6 +946,53 @@ function buildTradesFromMapping(rows, columnMapping, dateFormat, accountId) {
     });
   });
   return { validTrades, errors };
+}
+
+function showImportStep(n) {
+  [1,2,3].forEach(i => document.getElementById(`importStep${i}`).classList.toggle('hidden', i !== n));
+}
+
+function renderImportMapping(headers) {
+  const noneOpt = '<option value="">— No mapear —</option>';
+  const headerOpts = headers.map(h => `<option value="${h}">${h}</option>`).join('');
+  document.getElementById('importMappingContainer').innerHTML = CSV_FIELD_OPTIONS.map(f =>
+    `<div class="form-row" style="margin-bottom:8px;align-items:center;">
+      <div class="form-group" style="margin-bottom:0;flex:1;">
+        <label style="font-size:12px;">${f.label}${f.required ? ' <span style="color:var(--red);">*</span>' : ''}</label>
+      </div>
+      <div class="form-group" style="margin-bottom:0;flex:2;">
+        <select id="importMap_${f.field}" style="width:100%;">${noneOpt}${headerOpts}</select>
+      </div>
+    </div>`
+  ).join('');
+  CSV_FIELD_OPTIONS.forEach(f => {
+    const sel = document.getElementById(`importMap_${f.field}`);
+    const match = headers.find(h => h.toLowerCase() === f.field.toLowerCase() || h.toLowerCase().includes(f.field.toLowerCase()));
+    if (match) sel.value = match;
+  });
+}
+
+function renderImportPreview(validTrades, errors) {
+  const preview = validTrades.slice(0, 5);
+  let html = `<div style="margin-bottom:14px;font-size:13px;">
+    <span style="color:var(--green);font-weight:700;">✅ ${validTrades.length} trades válidos</span>
+    ${errors.length ? `&nbsp;·&nbsp;<span style="color:var(--red);font-weight:700;">⚠ ${errors.length} con errores</span>` : ''}
+  </div>`;
+  if (preview.length) {
+    html += `<div style="overflow-x:auto;margin-bottom:14px;"><table class="trades-table" style="font-size:11px;">
+      <thead><tr><th>Fecha</th><th>Par</th><th>Tipo</th><th>P&L</th><th>Sesión</th><th>Setup</th></tr></thead>
+      <tbody>${preview.map(t => `<tr><td>${t.date}</td><td>${t.pair}</td><td>${t.type}</td><td>${t.pnl}</td><td>${t.session||'—'}</td><td>${t.setup||'—'}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+    if (validTrades.length > 5) html += `<p style="font-size:12px;color:var(--text3);margin-bottom:14px;">... y ${validTrades.length - 5} trades más</p>`;
+  }
+  if (errors.length) {
+    html += `<div style="background:var(--bg3);border-radius:8px;padding:10px;max-height:120px;overflow-y:auto;">
+      <div style="font-size:12px;color:var(--red);font-weight:700;margin-bottom:6px;">Filas con errores (no se importarán):</div>
+      ${errors.slice(0,10).map(e => `<div style="font-size:11px;color:var(--text3);">Fila ${e.row}: ${e.reasons.join(', ')}</div>`).join('')}
+      ${errors.length > 10 ? `<div style="font-size:11px;color:var(--text3);">... y ${errors.length-10} más</div>` : ''}
+    </div>`;
+  }
+  document.getElementById('importPreviewContainer').innerHTML = html;
 }
 
 document.getElementById('exportCsvBtn').addEventListener('click',()=>{
