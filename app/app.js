@@ -1412,6 +1412,36 @@ function renderPatrones() {
       </tr>`).join('')}</tbody>
     </table></div>`;
   }
+  // ── Emociones por sesión
+  const sessionMap = {};
+  trades.filter(t => t.session).forEach(t => {
+    if (!sessionMap[t.session]) sessionMap[t.session] = { count: 0, wins: 0, emotions: {} };
+    sessionMap[t.session].count++;
+    if (parseFloat(t.pnl) > 0) sessionMap[t.session].wins++;
+    if (t.emotion) sessionMap[t.session].emotions[t.emotion] = (sessionMap[t.session].emotions[t.emotion] || 0) + 1;
+  });
+  const sessionStats = Object.entries(sessionMap)
+    .filter(([, v]) => v.count >= 3)
+    .map(([session, v]) => ({
+      session,
+      count: v.count,
+      wr: Math.round(v.wins / v.count * 100),
+      topEmotion: Object.entries(v.emotions).sort((a, b) => b[1] - a[1])[0]?.[0] || null,
+    }))
+    .sort((a, b) => b.count - a.count);
+  if (sessionStats.length) {
+    html += `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2);">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Emociones por Sesión</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;">
+        ${sessionStats.map(s => `<div style="background:var(--bg3);border-radius:10px;padding:12px 14px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">${s.session}</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">${s.topEmotion || '—'}</div>
+          <div style="font-size:13px;font-weight:700;color:${s.wr >= 50 ? 'var(--green)' : 'var(--red)'};">${s.wr}% WR</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${s.count} trades</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
   el.innerHTML = html;
 }
 document.getElementById('openPsycModal').addEventListener('click',()=>{document.getElementById('psycDate').value=new Date().toISOString().split('T')[0];document.getElementById('psycComentarios').value='';document.getElementById('psycEmocion').selectedIndex=0;['psycConfianzaVal','psycEstresVal','psycDisciplinaVal','psycPlanVal'].forEach(id=>{const el=document.getElementById(id);el.value=id.includes('Estres')?'3':'7';});['psycConfianzaNum','psycDisciplinaNum','psycPlanNum'].forEach(id=>document.getElementById(id).textContent='7');document.getElementById('psycEstresNum').textContent='3';document.getElementById('psycModal').classList.remove('hidden');});
