@@ -95,6 +95,10 @@ create table public.risk_history (
 alter table public.risk_history enable row level security;
 create policy "rh1" on public.risk_history for all using (auth.uid() = user_id);
 
+-- FREEMIUM: agregar columna is_premium a profiles existente
+-- Ejecuta esto UNA VEZ en Supabase → SQL Editor → New query → Run:
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_premium boolean DEFAULT false;
+
    ============================================================ */
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -134,6 +138,18 @@ export async function getProfile(userId) {
   const { data, error } = await supabase.from('profiles')
     .select('*').eq('id', userId).single();
   return error ? er(error, 'getProfile') : ok(data);
+}
+
+export async function ensureProfile(userId, email) {
+  const fallbackUsername = (email || 'user').split('@')[0];
+  // Inserta solo si no existe (ignoreDuplicates no sobreescribe username existente)
+  await supabase.from('profiles').upsert(
+    { id: userId, username: fallbackUsername, is_premium: false },
+    { onConflict: 'id', ignoreDuplicates: true }
+  );
+  const { data, error } = await supabase.from('profiles')
+    .select('*').eq('id', userId).single();
+  return error ? er(error, 'ensureProfile') : ok(data);
 }
 
 export async function updateInitBalance(userId, balance) {

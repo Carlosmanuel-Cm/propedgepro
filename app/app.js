@@ -15,7 +15,7 @@
 
 import {
   supabase,
-  signIn, signUp, signOut, getSession, getProfile,
+  signIn, signUp, signOut, getSession, getProfile, ensureProfile,
   updateInitBalance, updatePassword, resetPassword,
   fetchTrades, insertTrade, updateTrade, deleteTrade, deleteAllTrades, fetchAccounts,
   createAccount, archiveAccount, getTradeCountForAccount, deleteAccount,
@@ -30,7 +30,7 @@ bulkInsertTrades,
 
 // ── STATE ─────────────────────────────────────────────────────
 let trades=[], accounts=[], riskHistory=[], playbook=[], propFirms=[], payouts=[], psycEntries=[];
-let currentUser=null, currentProfile=null, currentAccountId=null;
+let currentUser=null, currentProfile=null, currentAccountId=null, currentUserIsPremium=false;
 let importParsed=null, importValidTrades=[], importErrors=[];
 let newsFilter='all', isDark=true, editIndex=null, editPropIdx=null, editTradeId=null;
 let charts={};
@@ -62,6 +62,12 @@ function showToast(msg, type='success') {
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = `toast ${type} show`;
   setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+// ── PREMIUM MODAL ────────────────────────────────────────────
+function showPremiumModal(msg) {
+  document.getElementById('premiumModalMsg').textContent = msg;
+  document.getElementById('premiumModal').classList.remove('hidden');
 }
 
 // ── TEMA ─────────────────────────────────────────────────────
@@ -110,8 +116,9 @@ async function checkSession() {
   const session = await getSession();
   if (session) {
     currentUser = session.user;
-    const { data: profile } = await getProfile(currentUser.id);
+    const { data: profile } = await ensureProfile(currentUser.id, currentUser.email);
     currentProfile = profile;
+    currentUserIsPremium = profile?.is_premium ?? false;
     await loadAllData();
     enterApp();
   }
@@ -131,8 +138,9 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   hideLoading();
   if (error) { errEl.textContent='⚠ '+translateAuthError(error.message); errEl.style.display='block'; return; }
   currentUser = user;
-  const { data: profile } = await getProfile(user.id);
+  const { data: profile } = await ensureProfile(user.id, user.email);
   currentProfile = profile;
+  currentUserIsPremium = profile?.is_premium ?? false;
   showLoading('Cargando tus datos...');
   await loadAllData();
   hideLoading();
@@ -410,10 +418,18 @@ updateSessions(); setInterval(updateSessions,30000);
   document.getElementById('closeAccountsModal').addEventListener('click', () =>
     document.getElementById('accountsModal').classList.add('hidden')
   );
+  document.getElementById('closePremiumModal').addEventListener('click', () =>
+    document.getElementById('premiumModal').classList.add('hidden')
+  );
+
   document.getElementById('saveAccountBtn').addEventListener('click', async () => {
     const firm_name = document.getElementById('acctFirmName').value.trim();
     const initial_balance = parseFloat(document.getElementById('acctInitBalance').value) || 0;
     if (!firm_name) { showToast('⚠ Escribe un nombre para la cuenta', 'warn'); return; }
+    if (!currentUserIsPremium && accounts.filter(a => a.status !== 'archived').length >= 1) {
+      showPremiumModal('El plan gratuito incluye 1 cuenta activa. Con el plan Premium puedes gestionar cuentas ilimitadas de distintas prop firms sin restricciones.');
+      return;
+    }
     const { data, error } = await createAccount({
       firm_name,
       account_type: document.getElementById('acctType').value,
@@ -432,6 +448,10 @@ updateSessions(); setInterval(updateSessions,30000);
 
   // Modal Importar CSV
   document.getElementById('openImportModal').addEventListener('click', () => {
+    if (!currentUserIsPremium) {
+      showPremiumModal('La importación de trades desde CSV es parte del plan Premium. Actualiza tu plan para importar tu historial de operaciones fácilmente.');
+      return;
+    }
     importParsed = null; importValidTrades = []; importErrors = [];
     document.getElementById('csvFileInput').value = '';
     document.getElementById('importMappingContainer').innerHTML = '';
@@ -1026,6 +1046,10 @@ document.getElementById('exportCsvBtn').addEventListener('click',()=>{
 
 // PDF Export
 document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  if (!currentUserIsPremium) {
+    showPremiumModal('Los reportes en PDF son parte del plan Premium. Actualiza tu plan para exportar el historial completo de trades en formato PDF.');
+    return;
+  }
   document.getElementById('pdfDateFrom').value = '';
   document.getElementById('pdfDateTo').value = '';
   document.getElementById('pdfModal').classList.remove('hidden');
