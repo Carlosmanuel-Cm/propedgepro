@@ -523,7 +523,7 @@ document.querySelectorAll('.menu-btn').forEach(btn=>{
     document.getElementById(btn.dataset.section).classList.add('active-page');
     document.getElementById('sidebar').classList.remove('open');
     const s=btn.dataset.section;
-    if(s==='psicologia'){renderPsyc();buildPsycChart();buildEmotionChart();}
+    if(s==='psicologia'){renderPsyc();buildPsycChart();buildEmotionChart();renderPatrones();}
     if(s==='logros')renderLogros();
     if(s==='propfirm')renderPropFirms();
     if(s==='payouts'){renderPayouts();buildPayoutChart();}
@@ -1226,7 +1226,7 @@ function buildWeekdayChart(){const DAYS=['Lunes','Martes','Miércoles','Jueves',
 function buildHourChart(){const pnlH={},countH={};trades.forEach(t=>{if(!t.time)return;const h=parseInt(t.time.split(':')[0],10);if(!pnlH[h]){pnlH[h]=0;countH[h]=0;}pnlH[h]+=parseFloat(t.pnl)||0;countH[h]++;});const hours=Object.keys(pnlH).map(Number).sort((a,b)=>a-b),labels=hours.map(h=>h+':00'),vals=hours.map(h=>countH[h]>0?parseFloat((pnlH[h]/countH[h]).toFixed(2)):0);destroyChart('hour');if(!hours.length){charts['hour']=new Chart(document.getElementById('hourChart'),{type:'bar',data:{labels:['Sin datos con hora'],datasets:[{data:[0]}]},options:{responsive:true,plugins:{legend:{display:false}}}});return;}charts['hour']=new Chart(document.getElementById('hourChart'),{type:'bar',data:{labels,datasets:[{label:'P&L promedio',data:vals,backgroundColor:vals.map(v=>v>=0?'rgba(56,189,248,.35)':'rgba(248,113,113,.35)'),borderColor:vals.map(v=>v>=0?'#38bdf8':'#f87171'),borderWidth:1.5,borderRadius:5}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Prom: $${c.raw} (${countH[hours[c.dataIndex]]} trades)`}}},scales:{x:{ticks:{color:'#4f6280'},grid:{color:'#1a264033'}},y:{ticks:{color:'#4f6280'},grid:{color:'#1a264033'}}}}});}
 function buildSetupChart(){const pnlS={},countS={};trades.forEach(t=>{if(!t.setup)return;if(!pnlS[t.setup]){pnlS[t.setup]=0;countS[t.setup]=0;}pnlS[t.setup]+=parseFloat(t.pnl)||0;countS[t.setup]++;});const setups=Object.keys(pnlS),vals=setups.map(s=>parseFloat(pnlS[s].toFixed(2)));destroyChart('setup');if(!setups.length){charts['setup']=new Chart(document.getElementById('setupChart'),{type:'bar',data:{labels:['Sin setups'],datasets:[{data:[0]}]},options:{responsive:true,plugins:{legend:{display:false}}}});return;}charts['setup']=new Chart(document.getElementById('setupChart'),{type:'bar',data:{labels:setups,datasets:[{label:'P&L total',data:vals,backgroundColor:vals.map(v=>v>=0?'rgba(167,139,250,.35)':'rgba(248,113,113,.35)'),borderColor:vals.map(v=>v>=0?'#a78bfa':'#f87171'),borderWidth:1.5,borderRadius:7}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Total: $${c.raw} (${countS[setups[c.dataIndex]]} trades)`}}},scales:{x:{ticks:{color:'#4f6280',maxRotation:30},grid:{color:'#1a264033'}},y:{ticks:{color:'#4f6280'},grid:{color:'#1a264033'}}}}});}
 
-function refreshAll(){renderTrades();renderStats();renderDashboard();buildEquityChart();buildWeeklyChart();buildDailyChart();buildAllStatCharts();buildMiniCalendar();renderLogros();}
+function refreshAll(){renderTrades();renderStats();renderDashboard();buildEquityChart();buildWeeklyChart();buildDailyChart();buildAllStatCharts();buildMiniCalendar();renderLogros();renderPatrones();}
 
 // PLAYBOOK
 const CAT_ICONS={regla:'📋',setup:'🎯',gestion:'⚖️',psicologia:'🧠',nota:'📝'};
@@ -1351,6 +1351,69 @@ async function deletePsycRow(id){if(!confirm('¿Eliminar entrada?'))return;await
 window.deletePsycRow=deletePsycRow;
 function buildPsycChart(){const ctx=document.getElementById('psycChart');if(!ctx)return;const last14=[...psycEntries].slice(0,14).reverse();const labels=last14.map(e=>e.date?new Date(e.date+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short'}):'—');destroyChart('psyc');charts['psyc']=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Confianza',data:last14.map(e=>e.confianza||0),borderColor:'#38bdf8',tension:.4,fill:false,pointRadius:3},{label:'Disciplina',data:last14.map(e=>e.disciplina||0),borderColor:'#34d399',tension:.4,fill:false,pointRadius:3},{label:'Estrés',data:last14.map(e=>e.estres||0),borderColor:'#f87171',tension:.4,fill:false,pointRadius:3}]},options:{responsive:true,scales:{x:{ticks:{color:'#4f6280'},grid:{color:'#1a264033'}},y:{ticks:{color:'#4f6280'},grid:{color:'#1a264033'},min:0,max:10}},plugins:{legend:{labels:{color:'#94a3b8',font:{size:12}}}}}});}
 function buildEmotionChart(){const ctx=document.getElementById('emotionChart');if(!ctx)return;const ep={};psycEntries.forEach(e=>{if(!e.emocion||!e.date)return;const dt=trades.filter(t=>t.date&&t.date.toString()===e.date.toString());if(!dt.length)return;const dp=dt.reduce((a,t)=>a+(parseFloat(t.pnl)||0),0);if(!ep[e.emocion])ep[e.emocion]={sum:0,count:0};ep[e.emocion].sum+=dp;ep[e.emocion].count++;});const labels=Object.keys(ep).map(k=>EMO_LABELS[k]||k),vals=Object.keys(ep).map(k=>parseFloat((ep[k].sum/ep[k].count).toFixed(2)));destroyChart('emotion');charts['emotion']=new Chart(ctx,{type:'bar',data:{labels:labels.length?labels:['Sin correlaciones'],datasets:[{label:'P&L promedio',data:vals.length?vals:[0],backgroundColor:vals.map(v=>v>=0?'rgba(52,211,153,.35)':'rgba(248,113,113,.35)'),borderColor:vals.map(v=>v>=0?'#34d399':'#f87171'),borderWidth:1.5,borderRadius:7}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#4f6280'},grid:{color:'#1a264033'}},y:{ticks:{color:'#4f6280'},grid:{color:'#1a264033'}}}}});}
+function renderPatrones() {
+  const el = document.getElementById('patronesContent');
+  if (!el) return;
+  let html = '';
+
+  // ── Rachas
+  const sorted = [...trades].sort((a, b) => (a.date||'').localeCompare(b.date||''));
+  let streakLen = 0, streakType = null;
+  if (sorted.length) {
+    const lastPnl = parseFloat(sorted[sorted.length - 1].pnl) || 0;
+    streakType = lastPnl > 0 ? 'win' : lastPnl < 0 ? 'loss' : null;
+    if (streakType) {
+      for (let i = sorted.length - 1; i >= 0; i--) {
+        const p = parseFloat(sorted[i].pnl) || 0;
+        if ((p > 0 ? 'win' : p < 0 ? 'loss' : null) === streakType) streakLen++;
+        else break;
+      }
+    }
+  }
+  if (streakLen >= 3) {
+    if (streakType === 'loss')
+      html += `<div style="background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.3);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;">⚠️ <strong>Llevas ${streakLen} pérdidas seguidas.</strong> Cuidado con el revenge trading.</div>`;
+    else
+      html += `<div style="background:rgba(5,150,105,0.1);border:1px solid rgba(5,150,105,0.25);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:13px;">✅ Llevas ${streakLen} operaciones ganadoras seguidas. Mantén la disciplina de tu plan.</div>`;
+  }
+
+  // ── Correlación emoción vs resultado
+  const emoMap = {};
+  trades.filter(t => t.emotion).forEach(t => {
+    if (!emoMap[t.emotion]) emoMap[t.emotion] = { count: 0, wins: 0, pnlSum: 0 };
+    emoMap[t.emotion].count++;
+    if (parseFloat(t.pnl) > 0) emoMap[t.emotion].wins++;
+    emoMap[t.emotion].pnlSum += parseFloat(t.pnl) || 0;
+  });
+  const generalWR = trades.length ? Math.round(trades.filter(t => parseFloat(t.pnl) > 0).length / trades.length * 100) : 0;
+  const qualified = Object.entries(emoMap)
+    .filter(([, v]) => v.count >= 3)
+    .map(([emo, v]) => ({ emo, count: v.count, wr: Math.round(v.wins / v.count * 100), avgPnl: v.pnlSum / v.count }))
+    .sort((a, b) => a.wr - b.wr);
+
+  if (!qualified.length) {
+    html += `<p style="color:var(--text2);font-size:13px;margin:0;">Aún no hay suficientes trades etiquetados con emoción para detectar patrones.</p>`;
+  } else {
+    const worst = qualified[0];
+    if (worst.wr < generalWR)
+      html += `<div style="background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;">📉 Cuando marcas <strong>"${worst.emo}"</strong> tu win rate cae a <strong>${worst.wr}%</strong> (vs ${generalWR}% general).</div>`;
+    html += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="color:var(--text2);border-bottom:1px solid var(--border2);">
+        <th style="text-align:left;padding:6px 8px;font-weight:600;">Emoción</th>
+        <th style="text-align:center;padding:6px 8px;font-weight:600;">Trades</th>
+        <th style="text-align:center;padding:6px 8px;font-weight:600;">Win Rate</th>
+        <th style="text-align:center;padding:6px 8px;font-weight:600;">P&L Prom.</th>
+      </tr></thead>
+      <tbody>${qualified.map((r, i) => `<tr style="border-bottom:1px solid var(--border2);${i===0?'background:rgba(220,38,38,0.06);':''}">
+        <td style="padding:7px 8px;font-weight:${i===0?'700':'400'};">${i===0?'📉 ':''}${r.emo}</td>
+        <td style="text-align:center;padding:7px 8px;color:var(--text2);">${r.count}</td>
+        <td style="text-align:center;padding:7px 8px;color:${r.wr>=generalWR?'var(--green)':'var(--red)'};font-weight:700;">${r.wr}%</td>
+        <td style="text-align:center;padding:7px 8px;color:${r.avgPnl>=0?'var(--green)':'var(--red)'};">${r.avgPnl>=0?'+':''}$${r.avgPnl.toFixed(2)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  }
+  el.innerHTML = html;
+}
 document.getElementById('openPsycModal').addEventListener('click',()=>{document.getElementById('psycDate').value=new Date().toISOString().split('T')[0];document.getElementById('psycComentarios').value='';document.getElementById('psycEmocion').selectedIndex=0;['psycConfianzaVal','psycEstresVal','psycDisciplinaVal','psycPlanVal'].forEach(id=>{const el=document.getElementById(id);el.value=id.includes('Estres')?'3':'7';});['psycConfianzaNum','psycDisciplinaNum','psycPlanNum'].forEach(id=>document.getElementById(id).textContent='7');document.getElementById('psycEstresNum').textContent='3';document.getElementById('psycModal').classList.remove('hidden');});
 document.getElementById('closePsycModal').addEventListener('click',()=>document.getElementById('psycModal').classList.add('hidden'));
 document.getElementById('savePsycBtn').addEventListener('click', async ()=>{
