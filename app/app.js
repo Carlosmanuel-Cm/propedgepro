@@ -1089,12 +1089,61 @@ document.getElementById('generatePdfBtn').addEventListener('click', () => {
     tableWidth: 'wrap',
   });
 
+  // ── Equity Curve (solo con ≥ 2 trades)
+  let afterResumen = doc.lastAutoTable.finalY + 8;
+  if (filtered.length >= 2) {
+    const equityLabels = ['Inicio', ...filtered.map((_, i) => i + 1)];
+    const equityData   = [initBal];
+    filtered.forEach(t => equityData.push(equityData[equityData.length - 1] + (parseFloat(t.pnl) || 0)));
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'equityChartCanvas';
+    canvas.width = 900; canvas.height = 300;
+    canvas.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+    document.body.appendChild(canvas);
+
+    const chart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: equityLabels,
+        datasets: [{
+          data: equityData,
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5,150,105,0.08)',
+          borderWidth: 2,
+          pointRadius: filtered.length > 50 ? 0 : 3,
+          pointHoverRadius: 0,
+          fill: true,
+          tension: 0.3,
+        }],
+      },
+      options: {
+        animation: false,
+        responsive: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,0.06)' } },
+          y: { grid: { color: 'rgba(0,0,0,0.06)' } },
+        },
+      },
+    });
+
+    const chartW = pageW - margin * 2;
+    const chartH = 65;
+    doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+    doc.text('Equity Curve', margin, afterResumen);
+    doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, afterResumen + 4, chartW, chartH);
+    afterResumen = afterResumen + 4 + chartH + 8;
+
+    chart.destroy();
+    canvas.remove();
+  }
+
   // ── Tabla de trades
-  const afterSummary = doc.lastAutoTable.finalY + 8;
   doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-  doc.text('Trades', margin, afterSummary);
+  doc.text('Trades', margin, afterResumen);
   doc.autoTable({
-    startY: afterSummary + 4,
+    startY: afterResumen + 4,
     head: [['Fecha', 'Par', 'Tipo', 'Lote', 'P&L', 'Resultado']],
     body: filtered.map(t => [
       t.date  || '',
