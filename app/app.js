@@ -32,6 +32,9 @@ bulkInsertTrades,
 let trades=[], accounts=[], riskHistory=[], playbook=[], propFirms=[], payouts=[], psycEntries=[];
 let currentUser=null, currentProfile=null, currentAccountId=null, currentUserIsPremium=false;
 let importParsed=null, importValidTrades=[], importErrors=[];
+
+// ── LEMON SQUEEZY ─────────────────────────────────────────────
+const LS_CHECKOUT_URL = 'https://propedgepro.lemonsqueezy.com/checkout/buy/TU-ID-REAL-AQUI';
 let newsFilter='all', isDark=true, editIndex=null, editPropIdx=null, editTradeId=null;
 let charts={};
 
@@ -67,6 +70,11 @@ function showToast(msg, type='success') {
 // ── PREMIUM MODAL ────────────────────────────────────────────
 function showPremiumModal(msg) {
   document.getElementById('premiumModalMsg').textContent = msg;
+  const parts = [];
+  if (currentUser?.id)    parts.push('checkout[custom][user_id]=' + encodeURIComponent(currentUser.id));
+  if (currentUser?.email) parts.push('checkout[email]='           + encodeURIComponent(currentUser.email));
+  const url = parts.length ? LS_CHECKOUT_URL + '?' + parts.join('&') : LS_CHECKOUT_URL;
+  document.getElementById('premiumCheckoutBtn').href = url;
   document.getElementById('premiumModal').classList.remove('hidden');
 }
 
