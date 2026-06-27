@@ -34,7 +34,7 @@ let currentUser=null, currentProfile=null, currentAccountId=null, currentUserIsP
 let importParsed=null, importValidTrades=[], importErrors=[];
 
 // ── LEMON SQUEEZY ─────────────────────────────────────────────
-const LS_CHECKOUT_URL = 'https://propedgepro.lemonsqueezy.com/checkout/buy/TU-ID-REAL-AQUI';
+const LS_CHECKOUT_URL = 'https://propedge-pro.lemonsqueezy.com/checkout/buy/5a98564f-face-4d4f-b9c2-473581d4a269';
 let newsFilter='all', isDark=true, editIndex=null, editPropIdx=null, editTradeId=null;
 let charts={};
 
